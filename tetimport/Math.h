@@ -37,7 +37,11 @@ struct Vec {
 
 float4 operator-(const float4 &a, const float4 &b) {
 
+<<<<<<< HEAD
+	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
+=======
 	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, 0);
+>>>>>>> origin/master
 
 }
 
@@ -87,7 +91,10 @@ struct BBox
 	float4 min, max;
 };
 
+<<<<<<< HEAD
+=======
 struct int4
 {
 	int32_t x, y, z, w;
 };
+>>>>>>> origin/master

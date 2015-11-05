@@ -59,7 +59,12 @@ public:
 	int32_t GetTetrahedraFromPoint(float4 p);
 	void init_BBox();
 	tetrahedra get_tetrahedra(uint32_t t){ return tetrahedras.at(t - 1); }
+<<<<<<< HEAD
+	face get_face(int32_t t){ return faces.at(t); }
+	node get_node(int32_t t){ return nodes.at(t); }
+=======
 	face get_face(uint32_t t){ return faces.at(t); }
+>>>>>>> origin/master
 
 private:
 	std::deque<tetrahedra>tetrahedras;
@@ -278,7 +283,11 @@ bool tetrahedra_mesh::IsPointInTetrahedron(tetrahedra t, float4 p)
 	float4 v2 = make_float4(nodes.at(t.nindex2 - 1).x, nodes.at(t.nindex2 - 1).y, nodes.at(t.nindex2 - 1).z, 0);
 	float4 v3 = make_float4(nodes.at(t.nindex3 - 1).x, nodes.at(t.nindex3 - 1).y, nodes.at(t.nindex3 - 1).z, 0);
 	float4 v4 = make_float4(nodes.at(t.nindex4 - 1).x, nodes.at(t.nindex4 - 1).y, nodes.at(t.nindex4 - 1).z, 0);
+<<<<<<< HEAD
+	// SameSide funktioniert mit ziemlicher Sicherheit - 03.11.2015
+=======
 
+>>>>>>> origin/master
 	return SameSide(v1, v2, v3, v4, p) &&
 		SameSide(v2, v3, v4, v1, p) &&
 		SameSide(v3, v4, v1, v2, p) &&
@@ -286,13 +295,40 @@ bool tetrahedra_mesh::IsPointInTetrahedron(tetrahedra t, float4 p)
 }
 
 
+<<<<<<< HEAD
+void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
+=======
 void GetExitTet(float4 ray_o, float4 ray_d, float4 nodes[4], int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
+>>>>>>> origin/master
 {
 	// http://realtimecollisiondetection.net/blog/?p=13
 
 	// translate Ray to origin and vertices same as ray
 	float4 q = ray_d - ray_o;
 
+<<<<<<< HEAD
+	float4 v1 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
+	float4 v2 = make_float4(nodes[1].x, nodes[1].y, nodes[1].z, 0); // B
+	float4 v3 = make_float4(nodes[2].x, nodes[2].y, nodes[2].z, 0); // C
+	float4 v4 = make_float4(nodes[3].x, nodes[3].y, nodes[3].z, 0); // D
+
+	float4 p[4] = { v1 - ray_o, v2 - ray_o, v3 - ray_o, v4 - ray_o };
+
+	// ScTP funktioniert auch mit float4.
+	// ABC
+	if (signf(ScTP(q, p[0], p[1])) == signf(ScTP(q, p[1], p[2])) && signf(ScTP(q, p[1], p[2])) == signf(ScTP(q, p[2], p[0])) && lface != findex[3]) { face = findex[3]; tet = adjtet[3]; }
+	// BAD
+	else if (signf(ScTP(q, p[1], p[0])) == signf(ScTP(q, p[0], p[3])) && signf(ScTP(q, p[0], p[3])) == signf(ScTP(q, p[3], p[1])) && lface != findex[2]) { face = findex[2]; tet = adjtet[2]; }
+	// CDA
+	else if (signf(ScTP(q, p[2], p[3])) == signf(ScTP(q, p[3], p[0])) && signf(ScTP(q, p[3], p[0])) == signf(ScTP(q, p[0], p[2])) && lface != findex[1]) { face = findex[1]; tet = adjtet[1]; }
+	// DCB
+	else if (signf(ScTP(q, p[3], p[2])) == signf(ScTP(q, p[2], p[1])) && signf(ScTP(q, p[2], p[1])) == signf(ScTP(q, p[1], p[3])) && lface != findex[0]) { face = findex[0]; tet = adjtet[0]; }
+	else {
+		printf("Error! No exit tet found. \n");
+		face = 0;
+		tet = 0;
+	}
+=======
 	float4 v1 = make_float4(nodes[1].x,nodes[1].y,nodes[1].z, 0); // A
 	float4 v2 = make_float4(nodes[2].x, nodes[2].y, nodes[2].z, 0); // B
 	float4 v3 = make_float4(nodes[3].x, nodes[3].y, nodes[3].z, 0); // C
@@ -315,6 +351,7 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4 nodes[4], int32_t findex[4], 
 	printf("Error! \n"); 
 	face = 0;
 	tet = 0;
+>>>>>>> origin/master
 }
 
 
