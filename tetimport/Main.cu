@@ -1,12 +1,5 @@
 #include "tetgen_io.h"
 
-<<<<<<< HEAD
-#define NUM 128
-=======
-#define NUM_BLOCKS    256
-#define NUM_THREADS   256
->>>>>>> origin/master
-
 class rayhit
 {
 public:
@@ -17,8 +10,7 @@ public:
 	bool constrained=false;
 };
 
-<<<<<<< HEAD
-void traverse_ray(tetrahedra_mesh *mesh, int32_t start, float t, rayhit &d)
+void traverse_ray(tetrahedra_mesh *mesh, int32_t start, rayhit &d)
 {
 	int32_t nexttet, nextface, lastface = 0;
 
@@ -32,53 +24,25 @@ void traverse_ray(tetrahedra_mesh *mesh, int32_t start, float t, rayhit &d)
 			make_float4(mesh->get_node(h->nindex2 - 1).x, mesh->get_node(h->nindex2 - 1).y, mesh->get_node(h->nindex2 - 1).z, 0),
 			make_float4(mesh->get_node(h->nindex3 - 1).x, mesh->get_node(h->nindex3 - 1).y, mesh->get_node(h->nindex3 - 1).z, 0),
 			make_float4(mesh->get_node(h->nindex4 - 1).x, mesh->get_node(h->nindex4 - 1).y, mesh->get_node(h->nindex4 - 1).z, 0) }; // for every node xyz is required...shit
-		uVec2 hit;
 
 
-		// 6x input, 2x output
-		GetExitTet(mesh->cam.o, mesh->cam.d, nodes, findex,adjtets, lastface, nextface, nexttet);
-
+		GetExitTet(mesh->curr.o, mesh->curr.d, nodes, findex, adjtets, lastface, nextface, nexttet);
 
 		fprintf(stderr, "Number of next tetrahedra: %lu \n", nexttet);
 		fprintf(stderr, "Number of next face: %lu \n\n", nextface);
 
-		if (mesh->get_face(nextface).face_is_constrained == true) { d.constrained = true; hit.face = nextface; hit.tet = nexttet; break; }
-		if (mesh->get_face(nextface).face_is_wall == true) { d.wall = true; hit.face = nextface; hit.tet = nexttet; break; }
-		if (nexttet == -1) { d.wall = true; hit.face = nextface; hit.tet = nexttet; break; } // when adjacent tetrahedra is -1, ray stops
+		if (mesh->get_face(nextface).face_is_constrained == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
+		if (mesh->get_face(nextface).face_is_wall == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
+		if (nexttet == -1) { d.wall = true; d.face = nextface; d.tet = start; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
 		start = nexttet;
 	}
 	if (d.wall == true) fprintf_s(stderr, "Wall hit.\n"); // finally... (27.10.2015)
 	if (d.constrained == true) fprintf_s(stderr, "Triangle hit.\n"); // now i have: index of face(=triangle) which is intersected by ray.
-=======
-
-
-void traverse_ray(tetrahedra_mesh *mesh, int32_t start, float t, rayhit *d)
-{
-	int32_t nexttet, nextface, lastface = 0;
-	while (1)
-	{
-		uVec2 hit;
-		GetExitTet(mesh->cam.o,mesh->cam.d, mesh->get_tetrahedra(start), lastface, nextface,nexttet);
-		fprintf(stderr, "Number of next tetrahedra: %lu \n", nexttet);
-		fprintf(stderr, "Number of next face: %lu \n\n", nextface);
-
-		if (mesh->get_face(nexttet.face).face_is_constrained == true) { d->constrained = true; hit.face = nexttet.face; hit.tet = nexttet.tet; break; }
-		if (mesh->get_face(nexttet.face).face_is_wall == true) { d->wall = true; hit.face = nexttet.face; hit.tet = nexttet.tet; break; }
-		if (nexttet.tet == -1) { d->wall = true; hit.face = nexttet.face; hit.tet = nexttet.tet; break; } // when adjacent tetrahedra is -1, ray stops
-		lastface = nexttet.face;
-		start = nexttet.tet;
-	}
-	if (d->wall == true) fprintf_s(stderr, "Wall hit.\n"); // finally... (27.10.2015)
-	if (d->constrained == true) fprintf_s(stderr, "Triangle hit.\n"); // now i have: index of face(=triangle) which is intersected by ray.
->>>>>>> origin/master
 }
-
-
 
 int main()
 {
-	const float t = 1.0e+30f;
 	// load tetrahedral model
 	tetrahedra_mesh tetmesh;
 	tetmesh.load_tet_ele("untitled.1.ele");
@@ -88,6 +52,8 @@ int main()
 	tetmesh.load_tet_t2f("untitled.1.t2f");
 	tetmesh.cam.d = make_float4(0, 1, 0, 0);
 	tetmesh.cam.o = make_float4(0, 5, 5, 0);
+	tetmesh.curr = tetmesh.cam;
+	
 
 	// Get bounding box
 	tetmesh.init_BBox();
@@ -105,12 +71,7 @@ int main()
 
 
 	rayhit firsthit;
-<<<<<<< HEAD
-	traverse_ray(&tetmesh, start, t, firsthit);
-=======
-	traverse_ray(&tetmesh, start, t, &firsthit);
->>>>>>> origin/master
-
+	traverse_ray(&tetmesh, start, firsthit);
 
 	system("PAUSE");
 }

@@ -3,13 +3,6 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 
- struct uVec2
-{
-	int32_t face, tet;
-	uVec2(int32_t f0, int32_t t0) { face = f0; tet = t0; }
-	uVec2(int32_t x = 0) { face = 0; tet = 0; }
-};
- 
 struct Vec {
 	double x, y, z;
 	Vec(double x0, double y0, double z0){ x = x0; y = y0; z = z0; }
@@ -37,11 +30,7 @@ struct Vec {
 
 float4 operator-(const float4 &a, const float4 &b) {
 
-<<<<<<< HEAD
 	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
-=======
-	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, 0);
->>>>>>> origin/master
 
 }
 
@@ -91,10 +80,18 @@ struct BBox
 	float4 min, max;
 };
 
-<<<<<<< HEAD
-=======
-struct int4
+
+float4 getNormal(float4 a, float4 b, float4 c) {	return(Cross(b-a,c-a)); }
+
+double intersect_dist(const Ray ray, float4 a, float4 b, float4 c) //tested and works!!
 {
-	int32_t x, y, z, w;
-};
->>>>>>> origin/master
+	float4 v0v1 = b - a;
+	float4 v0v2 = c - a;
+	float4 pvec = Cross(ray.d,v0v2);
+	float det = Dot(v0v1,pvec);
+	float invDet = 1 / det;
+	float4 tvec = ray.o - a;
+	float4 qvec = Cross(tvec,v0v1);
+	return Dot(v0v2,qvec) * invDet;
+}
+
