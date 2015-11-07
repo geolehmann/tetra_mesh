@@ -3,6 +3,8 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 
+#define PI 3.1415926536
+
 struct Vec {
 	double x, y, z;
 	Vec(double x0, double y0, double z0){ x = x0; y = y0; z = z0; }
@@ -33,6 +35,8 @@ float4 operator-(const float4 &a, const float4 &b) {
 	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
 
 }
+
+float4& normalize(const float4 &a){ float f = sqrt(a.x*a.x + a.y*a.y + a.z*a.z); return make_float4(a.x/f,a.y/f,a.z/f,0); }
 
 
 inline float Dot(const float4 a, const float4 b)
@@ -92,6 +96,22 @@ double intersect_dist(const Ray ray, float4 a, float4 b, float4 c) //tested and 
 	float invDet = 1 / det;
 	float4 tvec = ray.o - a;
 	float4 qvec = Cross(tvec,v0v1);
-	return Dot(v0v2,qvec) * invDet;
+	return abs(Dot(v0v2,qvec) * invDet);
 }
+
+
+float4 camcr(double w, double h, const double x, const double y)
+{
+	// taken from smallpaint by karoly zsolnai
+	float fovx = PI / 4;
+	float fovy = (h / w) * fovx;
+	return make_float4(((2*x-w)/w)* tanf(fovx),-((2*y-h)/h)*tanf(fovy),-1.0,0);
+}
+
+struct RGB
+{
+	double x, y, z;
+	RGB(double x0, double y0, double z0){ x = x0; y = y0; z = z0; }
+	RGB(double xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
+};
 

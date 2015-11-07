@@ -12,6 +12,7 @@ struct node // nodes have an index and three coordinates
 {
 	uint32_t index;
 	float x, y, z;
+	float4 f_node(){ return make_float4(x, y, z, 0); }
 };
 
 struct edge // an edge consists of two node indices and the index of the edge
@@ -192,8 +193,8 @@ void tetrahedra_mesh::load_tet_face(std::string filename)
 			{
 				faces.at(ints.at(0) - 1).index = ints.at(0);
 				faces.at(ints.at(0) - 1).node_a = ints.at(1);
-				faces.at(ints.at(0) - 1).node_a = ints.at(2);
-				faces.at(ints.at(0) - 1).node_a = ints.at(3);
+				faces.at(ints.at(0) - 1).node_b = ints.at(2);
+				faces.at(ints.at(0) - 1).node_c = ints.at(3);
 
 				if (ints.at(5) == -1 || ints.at(6) == -1) { faces.at(ints.at(0) - 1).face_is_wall = true; }
 				
@@ -344,3 +345,47 @@ void tetrahedra_mesh::init_BBox()
 	}
 }
 
+class rayhit
+{
+public:
+	int32_t tet;
+	int32_t face;
+	float4 pos;
+	bool wall = false;
+	bool constrained = false;
+};
+
+void traverse_ray(tetrahedra_mesh *mesh, Ray ray, int32_t start, rayhit &d)
+{
+	int32_t nexttet, nextface, lastface = 0;
+
+	while (1)
+	{
+		tetrahedra *h = &mesh->get_tetrahedra(start);
+		int32_t findex[4] = { h->findex1, h->findex2, h->findex3, h->findex4 };
+		int32_t adjtets[4] = { h->adjtet1, h->adjtet2, h->adjtet3, h->adjtet4 };
+		float4 nodes[4] = {
+			make_float4(mesh->get_node(h->nindex1 - 1).x, mesh->get_node(h->nindex1 - 1).y, mesh->get_node(h->nindex1 - 1).z, 0),
+			make_float4(mesh->get_node(h->nindex2 - 1).x, mesh->get_node(h->nindex2 - 1).y, mesh->get_node(h->nindex2 - 1).z, 0),
+			make_float4(mesh->get_node(h->nindex3 - 1).x, mesh->get_node(h->nindex3 - 1).y, mesh->get_node(h->nindex3 - 1).z, 0),
+			make_float4(mesh->get_node(h->nindex4 - 1).x, mesh->get_node(h->nindex4 - 1).y, mesh->get_node(h->nindex4 - 1).z, 0) }; // for every node xyz is required...shit
+
+
+		GetExitTet(ray.o, ray.d, nodes, findex, adjtets, lastface, nextface, nexttet);
+
+#ifndef NO_MSG	
+		fprintf(stderr, "Number of next tetrahedra: %lu \n", nexttet);
+		fprintf(stderr, "Number of next face: %lu \n\n", nextface); 
+#endif
+
+		if (mesh->get_face(nextface).face_is_constrained == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
+		if (mesh->get_face(nextface).face_is_wall == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
+		if (nexttet == -1) { d.wall = true; d.face = nextface; d.tet = start; break; } // when adjacent tetrahedra is -1, ray stops
+		lastface = nextface;
+		start = nexttet;
+	}
+#ifndef NO_MSG
+	if (d.wall == true) fprintf_s(stderr, "Wall hit.\n"); // finally... (27.10.2015)
+	if (d.constrained == true) fprintf_s(stderr, "Triangle hit.\n"); // now i have: index of face(=triangle) which is intersected by ray.
+#endif
+}

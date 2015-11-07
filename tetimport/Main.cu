@@ -1,45 +1,29 @@
+#define NO_MSG
 #include "tetgen_io.h"
 
-class rayhit
+const int width = 320, height=240;
+
+
+
+
+RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
 {
-public:
-	int32_t tet;
-	int32_t face;
-	float4 pos;
-	bool wall=false;
-	bool constrained=false;
-};
 
-void traverse_ray(tetrahedra_mesh *mesh, int32_t start, rayhit &d)
-{
-	int32_t nexttet, nextface, lastface = 0;
+	rayhit firsthit;
+	traverse_ray(mesh, r, start, firsthit);
 
-		while (1)
-	{
-		tetrahedra *h = &mesh->get_tetrahedra(start);
-		int32_t findex[4] = { h->findex1, h->findex2, h->findex3, h->findex4 };
-		int32_t adjtets[4] = { h->adjtet1, h->adjtet2, h->adjtet3, h->adjtet4 };
-		float4 nodes[4] = { 
-			make_float4(mesh->get_node(h->nindex1 - 1).x, mesh->get_node(h->nindex1 - 1).y, mesh->get_node(h->nindex1 - 1).z, 0),
-			make_float4(mesh->get_node(h->nindex2 - 1).x, mesh->get_node(h->nindex2 - 1).y, mesh->get_node(h->nindex2 - 1).z, 0),
-			make_float4(mesh->get_node(h->nindex3 - 1).x, mesh->get_node(h->nindex3 - 1).y, mesh->get_node(h->nindex3 - 1).z, 0),
-			make_float4(mesh->get_node(h->nindex4 - 1).x, mesh->get_node(h->nindex4 - 1).y, mesh->get_node(h->nindex4 - 1).z, 0) }; // for every node xyz is required...shit
+	face fc = mesh->get_face(firsthit.face);
+	node a1 = mesh->get_node(fc.node_a);
+	node a2 = mesh->get_node(fc.node_b);
+	node a3 = mesh->get_node(fc.node_c);
+	double d = intersect_dist(r, a1.f_node(), a2.f_node(), a3.f_node());
 
 
-		GetExitTet(mesh->curr.o, mesh->curr.d, nodes, findex, adjtets, lastface, nextface, nexttet);
-
-		fprintf(stderr, "Number of next tetrahedra: %lu \n", nexttet);
-		fprintf(stderr, "Number of next face: %lu \n\n", nextface);
-
-		if (mesh->get_face(nextface).face_is_constrained == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
-		if (mesh->get_face(nextface).face_is_wall == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
-		if (nexttet == -1) { d.wall = true; d.face = nextface; d.tet = start; break; } // when adjacent tetrahedra is -1, ray stops
-		lastface = nextface;
-		start = nexttet;
-	}
-	if (d.wall == true) fprintf_s(stderr, "Wall hit.\n"); // finally... (27.10.2015)
-	if (d.constrained == true) fprintf_s(stderr, "Triangle hit.\n"); // now i have: index of face(=triangle) which is intersected by ray.
+	return RGB(0, 0, (int)d*5); // abhängig von d
 }
+
+
+
 
 int main()
 {
@@ -70,10 +54,25 @@ int main()
 	}	else fprintf_s(stderr, "Starting point (camera) tetra number: %lu\n\n",start);
 
 
-	rayhit firsthit;
-	traverse_ray(&tetmesh, start, firsthit);
+	// raytracing stuff
+	RGB *color=new RGB[width*height];
+		for (int x = 0; x < width; x++){
+			for (int y = 0; y < height; y++){
 
-	system("PAUSE");
+			tetmesh.curr.o = make_float4(0, 5, 5, 0);
+			float4 cam = camcr(width, height, x, y);
+			tetmesh.curr.d = normalize(cam - tetmesh.curr.o);
+
+			color[(height - y - 1)*width + x] = trace(tetmesh.curr, &tetmesh, start, 0);
+			//color[(height - y - 1)*width + x] = RGB(40, 0, 0); // auch hier jeder zweite y-wert weg
+		}
+	}
+
+	// write to image
+	FILE *f = fopen("image.ppm", "w");         // Write image to PPM file. 
+	fprintf(f, "P3\n%d %d\n%d\n", width, height, 255);
+	for (int i = 0; i<width*height; i++)
+		fprintf(f, "%d %d %d ", (int)color[i].x, (int)color[i].y, (int)color[i].z);
 }
 
 
