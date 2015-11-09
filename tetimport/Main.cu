@@ -1,16 +1,13 @@
-#define NO_MSG
+#define NO_MSG //increases speed greatly
 #include "tetgen_io.h"
 
 const int width = 320, height=240;
 
 
-
-
 RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
 {
-
 	rayhit firsthit;
-	traverse_ray(mesh, r, start, firsthit);
+	traverse_ray(mesh, r, start, firsthit, depth);
 
 	face fc = mesh->get_face(firsthit.face);
 	node a1 = mesh->get_node(fc.node_a);
@@ -18,8 +15,8 @@ RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
 	node a3 = mesh->get_node(fc.node_c);
 	double d = intersect_dist(r, a1.f_node(), a2.f_node(), a3.f_node());
 
-
-	return RGB(0, 0, (int)d*5); // abhängig von d
+	int d2 = (((d - 0)*(255 - 0)) / (10 - 0)) + 0;
+	return RGB(0,0,d2); // return depth value
 }
 
 
@@ -34,10 +31,8 @@ int main()
 	tetmesh.load_tet_node("untitled.1.node");
 	tetmesh.load_tet_face("untitled.1.face");
 	tetmesh.load_tet_t2f("untitled.1.t2f");
-	tetmesh.cam.d = make_float4(0, 1, 0, 0);
-	tetmesh.cam.o = make_float4(0, 5, 5, 0);
+	tetmesh.cam.o = make_float4(2.13, 5.08, 3.97, 0);
 	tetmesh.curr = tetmesh.cam;
-	
 
 	// Get bounding box
 	tetmesh.init_BBox();
@@ -55,16 +50,20 @@ int main()
 
 
 	// raytracing stuff
+
 	RGB *color=new RGB[width*height];
-		for (int x = 0; x < width; x++){
-			for (int y = 0; y < height; y++){
+	for (int x = 0; x < width; x++){
+		for (int y = 0; y < height; y++){
+			for (int s = 0; s < 4; s++){
 
-			tetmesh.curr.o = make_float4(0, 5, 5, 0);
-			float4 cam = camcr(width, height, x, y);
-			tetmesh.curr.d = normalize(cam - tetmesh.curr.o);
+				float4 cam = camcr(width, height, x, y);
+				cam.x = cam.x + RND / 700;
+				cam.y = cam.y + RND / 700;
 
-			color[(height - y - 1)*width + x] = trace(tetmesh.curr, &tetmesh, start, 0);
-			//color[(height - y - 1)*width + x] = RGB(40, 0, 0); // auch hier jeder zweite y-wert weg
+				tetmesh.curr.d = normalize(cam - tetmesh.curr.o);
+
+				color[(height - y - 1)*width + x] = color[(height - y - 1)*width + x] + (trace(tetmesh.curr, &tetmesh, start, 0)/4);
+			}
 		}
 	}
 

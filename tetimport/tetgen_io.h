@@ -4,8 +4,7 @@
 #include <sstream>
 #include <vector>
 #include <deque>
-#include <array>
-
+bool jetzt = false;
 #include "Math.h"
 
 struct node // nodes have an index and three coordinates
@@ -60,7 +59,7 @@ public:
 	bool IsPointInTetrahedron(tetrahedra t, float4 p);
 	int32_t GetTetrahedraFromPoint(float4 p);
 	void init_BBox();
-	tetrahedra get_tetrahedra(uint32_t t){ return tetrahedras.at(t - 1); }
+	tetrahedra get_tetrahedra(int32_t t){ return tetrahedras.at(t); }
 	face get_face(int32_t t){ return faces.at(t); }
 	node get_node(int32_t t){ return nodes.at(t); }
 
@@ -93,11 +92,11 @@ void tetrahedra_mesh::load_tet_ele(std::string filename)
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
-				tetrahedras.at(ints.at(0) - 1).number = ints.at(0); //nummer von aktuellem tetrahedra
-				tetrahedras.at(ints.at(0) - 1).nindex1 = ints.at(1);
-				tetrahedras.at(ints.at(0) - 1).nindex2 = ints.at(2);
-				tetrahedras.at(ints.at(0) - 1).nindex3 = ints.at(3);
-				tetrahedras.at(ints.at(0) - 1).nindex4 = ints.at(4);
+				tetrahedras.at(ints.at(0)).number = ints.at(0); //nummer von aktuellem tetrahedra
+				tetrahedras.at(ints.at(0)).nindex1 = ints.at(1);
+				tetrahedras.at(ints.at(0)).nindex2 = ints.at(2);
+				tetrahedras.at(ints.at(0)).nindex3 = ints.at(3);
+				tetrahedras.at(ints.at(0)).nindex4 = ints.at(4);
 			}
 			num++;
 		}
@@ -122,10 +121,10 @@ void tetrahedra_mesh::load_tet_neigh(std::string filename)
 			copy(std::istream_iterator<int32_t, char>(in), std::istream_iterator<int32_t, char>(), back_inserter(ints));
 			if (num != 0 && ints.size() != NULL)
 			{
-				tetrahedras.at(ints.at(0) - 1).adjtet1 = ints.at(1);
-				tetrahedras.at(ints.at(0) - 1).adjtet2 = ints.at(2);
-				tetrahedras.at(ints.at(0) - 1).adjtet3 = ints.at(3);
-				tetrahedras.at(ints.at(0) - 1).adjtet4 = ints.at(4);
+				tetrahedras.at(ints.at(0)).adjtet1 = ints.at(1);
+				tetrahedras.at(ints.at(0)).adjtet2 = ints.at(2);
+				tetrahedras.at(ints.at(0)).adjtet3 = ints.at(3);
+				tetrahedras.at(ints.at(0)).adjtet4 = ints.at(4);
 			}
 			num++;
 		}
@@ -157,10 +156,10 @@ void tetrahedra_mesh::load_tet_node(std::string filename)
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
-				nodes.at((int)ints.at(0) - 1).index = ints.at(0);
-				nodes.at((int)ints.at(0) - 1).x = ints.at(1);
-				nodes.at((int)ints.at(0) - 1).y = ints.at(2);
-				nodes.at((int)ints.at(0) - 1).z = ints.at(3);
+				nodes.at((int)ints.at(0)).index = ints.at(0);
+				nodes.at((int)ints.at(0)).x = ints.at(1);
+				nodes.at((int)ints.at(0)).y = ints.at(2);
+				nodes.at((int)ints.at(0)).z = ints.at(3);
 			}
 			num++;
 		}
@@ -191,12 +190,12 @@ void tetrahedra_mesh::load_tet_face(std::string filename)
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
-				faces.at(ints.at(0) - 1).index = ints.at(0);
-				faces.at(ints.at(0) - 1).node_a = ints.at(1);
-				faces.at(ints.at(0) - 1).node_b = ints.at(2);
-				faces.at(ints.at(0) - 1).node_c = ints.at(3);
+				faces.at(ints.at(0)).index = ints.at(0);
+				faces.at(ints.at(0)).node_a = ints.at(1);
+				faces.at(ints.at(0)).node_b = ints.at(2);
+				faces.at(ints.at(0)).node_c = ints.at(3);
 
-				if (ints.at(5) == -1 || ints.at(6) == -1) { faces.at(ints.at(0) - 1).face_is_wall = true; }
+				if (ints.at(5) == -1 || ints.at(6) == -1) { faces.at(ints.at(0)).face_is_wall = true; }
 				
 			}
 			num++;
@@ -225,13 +224,13 @@ void tetrahedra_mesh::load_tet_edge(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				edgenum = int(ints.at(0)); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				edges.resize(edgenum, ed1); //Tetrahedra-Deque f�llen
+				edges.resize(edgenum, ed1); //Tetrahedra-Deque füllen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
-				edges.at(ints.at(0) - 1).index = ints.at(0);
-				edges.at(ints.at(0) - 1).node1 = ints.at(1);
-				edges.at(ints.at(0) - 1).node1 = ints.at(2);
+				edges.at(ints.at(0)).index = ints.at(0);
+				edges.at(ints.at(0)).node1 = ints.at(1);
+				edges.at(ints.at(0)).node1 = ints.at(2);
 			}
 			num++;
 		}
@@ -277,10 +276,10 @@ void tetrahedra_mesh::load_tet_t2f(std::string filename)
 
 bool tetrahedra_mesh::IsPointInTetrahedron(tetrahedra t, float4 p)
 {
-	float4 v1 = make_float4(nodes.at(t.nindex1 - 1).x, nodes.at(t.nindex1 - 1).y, nodes.at(t.nindex1 - 1).z, 0);
-	float4 v2 = make_float4(nodes.at(t.nindex2 - 1).x, nodes.at(t.nindex2 - 1).y, nodes.at(t.nindex2 - 1).z, 0);
-	float4 v3 = make_float4(nodes.at(t.nindex3 - 1).x, nodes.at(t.nindex3 - 1).y, nodes.at(t.nindex3 - 1).z, 0);
-	float4 v4 = make_float4(nodes.at(t.nindex4 - 1).x, nodes.at(t.nindex4 - 1).y, nodes.at(t.nindex4 - 1).z, 0);
+	float4 v1 = make_float4(nodes.at(t.nindex1).x, nodes.at(t.nindex1).y, nodes.at(t.nindex1).z, 0);
+	float4 v2 = make_float4(nodes.at(t.nindex2).x, nodes.at(t.nindex2).y, nodes.at(t.nindex2).z, 0);
+	float4 v3 = make_float4(nodes.at(t.nindex3).x, nodes.at(t.nindex3).y, nodes.at(t.nindex3).z, 0);
+	float4 v4 = make_float4(nodes.at(t.nindex4).x, nodes.at(t.nindex4).y, nodes.at(t.nindex4).z, 0);
 	// SameSide funktioniert mit ziemlicher Sicherheit - 03.11.2015
 	return SameSide(v1, v2, v3, v4, p) &&
 		SameSide(v2, v3, v4, v1, p) &&
@@ -314,6 +313,7 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], in
 	else if (signf(ScTP(q, p[3], p[2])) == signf(ScTP(q, p[2], p[1])) && signf(ScTP(q, p[2], p[1])) == signf(ScTP(q, p[1], p[3])) && lface != findex[0]) { face = findex[0]; tet = adjtet[0]; }
 	else {
 		printf("Error! No exit tet found. \n");
+		jetzt = true;
 		face = 0;
 		tet = 0;
 	}
@@ -355,7 +355,7 @@ public:
 	bool constrained = false;
 };
 
-void traverse_ray(tetrahedra_mesh *mesh, Ray ray, int32_t start, rayhit &d)
+void traverse_ray(tetrahedra_mesh *mesh, Ray ray, int32_t start, rayhit &d, int depth)
 {
 	int32_t nexttet, nextface, lastface = 0;
 
@@ -365,14 +365,14 @@ void traverse_ray(tetrahedra_mesh *mesh, Ray ray, int32_t start, rayhit &d)
 		int32_t findex[4] = { h->findex1, h->findex2, h->findex3, h->findex4 };
 		int32_t adjtets[4] = { h->adjtet1, h->adjtet2, h->adjtet3, h->adjtet4 };
 		float4 nodes[4] = {
-			make_float4(mesh->get_node(h->nindex1 - 1).x, mesh->get_node(h->nindex1 - 1).y, mesh->get_node(h->nindex1 - 1).z, 0),
-			make_float4(mesh->get_node(h->nindex2 - 1).x, mesh->get_node(h->nindex2 - 1).y, mesh->get_node(h->nindex2 - 1).z, 0),
-			make_float4(mesh->get_node(h->nindex3 - 1).x, mesh->get_node(h->nindex3 - 1).y, mesh->get_node(h->nindex3 - 1).z, 0),
-			make_float4(mesh->get_node(h->nindex4 - 1).x, mesh->get_node(h->nindex4 - 1).y, mesh->get_node(h->nindex4 - 1).z, 0) }; // for every node xyz is required...shit
+			make_float4(mesh->get_node(h->nindex1).x, mesh->get_node(h->nindex1).y, mesh->get_node(h->nindex1).z, 0),
+			make_float4(mesh->get_node(h->nindex2).x, mesh->get_node(h->nindex2).y, mesh->get_node(h->nindex2).z, 0),
+			make_float4(mesh->get_node(h->nindex3).x, mesh->get_node(h->nindex3).y, mesh->get_node(h->nindex3).z, 0),
+			make_float4(mesh->get_node(h->nindex4).x, mesh->get_node(h->nindex4).y, mesh->get_node(h->nindex4).z, 0) }; // for every node xyz is required...shit
 
 
 		GetExitTet(ray.o, ray.d, nodes, findex, adjtets, lastface, nextface, nexttet);
-
+		depth++;
 #ifndef NO_MSG	
 		fprintf(stderr, "Number of next tetrahedra: %lu \n", nexttet);
 		fprintf(stderr, "Number of next face: %lu \n\n", nextface); 
