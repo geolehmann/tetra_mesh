@@ -51,6 +51,7 @@ public:
 	void load_tet_node(std::string filename);
 	void load_tet_face(std::string filename);
 	void load_tet_t2f(std::string filename);
+	void load_tet_smesh(std::string filename);
 	void load_tet_edge(std::string filename);
 
 	void load_tetmodel(std::string filename);
@@ -195,6 +196,8 @@ void tetrahedra_mesh::load_tet_face(std::string filename)
 				faces.at(ints.at(0)).node_b = ints.at(2);
 				faces.at(ints.at(0)).node_c = ints.at(3);
 
+				if (ints.at(4) == -1) faces.at(ints.at(0)).face_is_constrained = true;
+
 				if (ints.at(5) == -1 || ints.at(6) == -1) { faces.at(ints.at(0)).face_is_wall = true; }
 				
 			}
@@ -253,17 +256,43 @@ void tetrahedra_mesh::load_tet_t2f(std::string filename)
 			std::stringstream in(line);
 			std::vector<int32_t> ints;
 			copy(std::istream_iterator<int32_t, char>(in), std::istream_iterator<int32_t, char>(), back_inserter(ints));
-			if (num == 0) //Erste Zeile
-			{
-				//nada
-			}
-			else if (ints.size() != NULL) // restliche Zeilen
+			
+			if (ints.size() != NULL) // alle Zeilen
 			{
 				tetrahedras.at(ints.at(0) - 1).findex1 = ints.at(1);
 				tetrahedras.at(ints.at(0) - 1).findex2 = ints.at(2);
 				tetrahedras.at(ints.at(0) - 1).findex3 = ints.at(3);
 				tetrahedras.at(ints.at(0) - 1).findex4 = ints.at(4);
 			}
+			num++;
+		}
+		myfile.close();
+	}
+	else std::cout << "Unable to open .t2f file";
+	fprintf_s(stderr, "Total number of Tetrahedra in .t2f-file: %u \n", num);
+}
+
+
+void tetrahedra_mesh::load_tet_smesh(std::string filename)
+{
+	uint32_t num = 0;
+	std::string line;
+	std::ifstream myfile(filename);
+	if (myfile.is_open())
+	{
+		while (std::getline(myfile, line) && num<max) // Nur die ersten tausend Zeilen einlesen
+		{
+			std::stringstream in(line);
+			std::vector<int32_t> ints;
+			copy(std::istream_iterator<int32_t, char>(in), std::istream_iterator<int32_t, char>(), back_inserter(ints));
+
+			if (ints.size() != NULL && num>=8) // alle Zeilen ab 8
+			{
+				faces.at(ints.at(1)).face_is_constrained = true;
+				faces.at(ints.at(2)).face_is_constrained = true;
+				faces.at(ints.at(3)).face_is_constrained = true;
+			}
+			if (ints.size() == NULL && num >= 8) break;
 			num++;
 		}
 		myfile.close();
@@ -372,6 +401,13 @@ void traverse_ray(tetrahedra_mesh *mesh, Ray ray, int32_t start, rayhit &d, int 
 
 
 		GetExitTet(ray.o, ray.d, nodes, findex, adjtets, lastface, nextface, nexttet);
+		if (nexttet == 0 || nextface == 0)
+		{
+			d.wall = true;
+			d.face=lastface;
+			fprintf(stderr, "Stopped at null face. \n"); //debug msg
+			break;
+		}
 		depth++;
 #ifndef NO_MSG	
 		fprintf(stderr, "Number of next tetrahedra: %lu \n", nexttet);

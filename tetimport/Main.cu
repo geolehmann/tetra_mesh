@@ -13,10 +13,13 @@ RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
 	node a1 = mesh->get_node(fc.node_a);
 	node a2 = mesh->get_node(fc.node_b);
 	node a3 = mesh->get_node(fc.node_c);
-	double d = intersect_dist(r, a1.f_node(), a2.f_node(), a3.f_node());
+	double c = intersect_dist(r, a1.f_node(), a2.f_node(), a3.f_node());
+	
+	float k = ((255-0) / (0-17));
+	float d = 0 - (17 * k);
 
-	int d2 = (((d - 0)*(255 - 0)) / (10 - 0)) + 0;
-	return RGB(0,0,d2); // return depth value
+	int d2 = (c*k) + d;
+	return RGB(0,0,c); // return depth value
 }
 
 
@@ -31,7 +34,8 @@ int main()
 	tetmesh.load_tet_node("untitled.1.node");
 	tetmesh.load_tet_face("untitled.1.face");
 	tetmesh.load_tet_t2f("untitled.1.t2f");
-	tetmesh.cam.o = make_float4(2.13, 5.08, 3.97, 0);
+	tetmesh.cam.o = make_float4(1.8, 4, 5, 0);
+	tetmesh.cam.d = make_float4(1, 0, 0, 0);
 	tetmesh.curr = tetmesh.cam;
 
 	// Get bounding box
@@ -50,19 +54,34 @@ int main()
 
 
 	// raytracing stuff
+	FILE *f2 = fopen("test3.txt", "w");
+	float4 camera_position = tetmesh.curr.o;
+	float4 camera_direction = normalize(tetmesh.curr.d);
+	float4 camera_up = make_float4(0, 0, 1, 0);
+	float4 camera_right = Cross(camera_direction, camera_up);
+	camera_up = Cross(camera_right, camera_direction); // This corrects for any slop in the choice of "up".
+
 
 	RGB *color=new RGB[width*height];
-	for (int x = 0; x < width; x++){
-		for (int y = 0; y < height; y++){
+	for (int y = 0; y < height; y++){
+		for (int x = 0; x < width; x++){
 			for (int s = 0; s < 4; s++){
 
-				float4 cam = camcr(width, height, x, y);
-				cam.x = cam.x + RND / 700;
-				cam.y = cam.y + RND / 700;
+				double normalized_x = (x / width) - 0.5;
+				double normalized_y = (y / height) - 0.5;
+				float4 image_point = camera_right * normalized_x + camera_up * normalized_y + camera_position + camera_direction;
+				float4 ray_direction = image_point - camera_position;
 
-				tetmesh.curr.d = normalize(cam - tetmesh.curr.o);
 
-				color[(height - y - 1)*width + x] = color[(height - y - 1)*width + x] + (trace(tetmesh.curr, &tetmesh, start, 0)/4);
+				ray_direction.x = ray_direction.x + RND / 700;
+				ray_direction.y = ray_direction.y + RND / 700;
+				Ray rt;
+				rt.d = ray_direction;
+				rt.o = camera_position;
+
+				RGB c = trace(rt, &tetmesh, start, 0);
+				fprintf(f2, "%f %f %f \n", c.x,c.y,c.z);
+				color[(height - y - 1)*width + x] = color[(height - y - 1)*width + x] + (c/4);
 			}
 		}
 	}

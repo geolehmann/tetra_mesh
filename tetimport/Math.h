@@ -49,10 +49,12 @@ float4 operator*(const float4 &a, const double &b) {
 
 }
 
+
+
 float4 normalize(const float4 &a)
 { 
 	float f = sqrt(a.x*a.x + a.y*a.y + a.z*a.z); 
-	return make_float4(a.x/f,a.y/f,a.z/f,0);
+	return make_float4(a.x/f, a.y/f, a.z/f, 0);
 }
 
 
@@ -64,8 +66,8 @@ inline float Dot(const float4 a, const float4 b)
 inline float4 Cross(const float4 a, const float4 b)
 {
 	float4 cross = { a.y * b.z - a.z * b.y,
-		a.z * b.x - a.x * b.z,
-		a.x * b.y - a.y * b.x };
+					 a.z * b.x - a.x * b.z,
+					 a.x * b.y - a.y * b.x };
 	return cross;
 }
 
@@ -104,26 +106,14 @@ struct BBox
 
 float4 getNormal(float4 a, float4 b, float4 c) {	return(Cross(b-a,c-a)); }
 
-double intersect_dist(const Ray ray, float4 a, float4 b, float4 c) //tested and works!!
+double intersect_dist(Ray ray, float4 a, float4 b, float4 c) //tested and works!!
 {
-	float4 v0v1 = b - a;
-	float4 v0v2 = c - a;
-	float4 pvec = Cross(ray.d,v0v2);
-	float det = Dot(v0v1,pvec);
-	float invDet = 1 / det;
-	float4 tvec = ray.o - a;
-	float4 qvec = Cross(tvec,v0v1);
-	return abs(Dot(v0v2,qvec) * invDet);
+	float4 N = normalize(Cross(b - a, c - a));
+	float D = Dot(N, a) * -1;
+	float NdotR = Dot(N, ray.d)* -1;
+	return (Dot(N, ray.o) + D) / NdotR;
 }
 
-
-float4 camcr(double w, double h, const double x, const double y)
-{
-	// taken from smallpaint by karoly zsolnai
-	float fovx = PI / 4;
-	float fovy = (h / w) * fovx;
-	return make_float4(((2*x-w)/w)* tan(fovx),-((2*y-h)/h)*tan(fovy),-1.0,0);
-}
 
 struct RGB
 {
