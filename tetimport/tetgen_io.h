@@ -4,7 +4,7 @@
 #include <sstream>
 #include <vector>
 #include <deque>
-bool jetzt = false;
+
 #include "Math.h"
 
 struct node // nodes have an index and three coordinates
@@ -51,7 +51,6 @@ public:
 	void load_tet_node(std::string filename);
 	void load_tet_face(std::string filename);
 	void load_tet_t2f(std::string filename);
-	void load_tet_smesh(std::string filename);
 	void load_tet_edge(std::string filename);
 
 	void load_tetmodel(std::string filename);
@@ -272,34 +271,6 @@ void tetrahedra_mesh::load_tet_t2f(std::string filename)
 	fprintf_s(stderr, "Total number of Tetrahedra in .t2f-file: %u \n", num);
 }
 
-
-void tetrahedra_mesh::load_tet_smesh(std::string filename)
-{
-	uint32_t num = 0;
-	std::string line;
-	std::ifstream myfile(filename);
-	if (myfile.is_open())
-	{
-		while (std::getline(myfile, line) && num<max) // Nur die ersten tausend Zeilen einlesen
-		{
-			std::stringstream in(line);
-			std::vector<int32_t> ints;
-			copy(std::istream_iterator<int32_t, char>(in), std::istream_iterator<int32_t, char>(), back_inserter(ints));
-
-			if (ints.size() != NULL && num>=8) // alle Zeilen ab 8
-			{
-				faces.at(ints.at(1)).face_is_constrained = true;
-				faces.at(ints.at(2)).face_is_constrained = true;
-				faces.at(ints.at(3)).face_is_constrained = true;
-			}
-			if (ints.size() == NULL && num >= 8) break;
-			num++;
-		}
-		myfile.close();
-	}
-	else std::cout << "Unable to open .t2f file";
-	fprintf_s(stderr, "Total number of Tetrahedra in .t2f-file: %u \n", num);
-}
 //--------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -319,9 +290,13 @@ bool tetrahedra_mesh::IsPointInTetrahedron(tetrahedra t, float4 p)
 
 void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
+	face = 0;
+	tet = 0;
 	// http://realtimecollisiondetection.net/blog/?p=13
 
 	// translate Ray to origin and vertices same as ray
+	ray_d = ray_o + (ray_d * 1000);
+
 	float4 q = ray_d - ray_o;
 
 	float4 v1 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
@@ -331,21 +306,77 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], in
 
 	float4 p[4] = { v1 - ray_o, v2 - ray_o, v3 - ray_o, v4 - ray_o };
 
+	float u_3 = ScTP(q, p[0], p[1]);
+	float v_3 = ScTP(q, p[1], p[2]);
+	float w_3 = ScTP(q, p[2], p[0]);
+
+	float u_2 = ScTP(q, p[1], p[0]);
+	float v_2 = ScTP(q, p[0], p[3]);
+	float w_2 = ScTP(q, p[3], p[1]);
+
+	float u_1 = ScTP(q, p[2], p[3]);
+	float v_1 = ScTP(q, p[3], p[0]);
+	float w_1 = ScTP(q, p[0], p[2]);
+
+	float u_0 = ScTP(q, p[3], p[2]);
+	float v_0 = ScTP(q, p[2], p[1]);
+	float w_0 = ScTP(q, p[1], p[3]);
+
+	float X, Y, Z;
+
 	// ScTP funktioniert auch mit float4.
 	// ABC
-	if (signf(ScTP(q, p[0], p[1])) == signf(ScTP(q, p[1], p[2])) && signf(ScTP(q, p[1], p[2])) == signf(ScTP(q, p[2], p[0])) && lface != findex[3]) { face = findex[3]; tet = adjtet[3]; }
+	if (lface != findex[3]) { if (signf(u_3) == signf(v_3) && signf(v_3) == signf(w_3)) 
+	{ 
+		face = findex[3]; tet = adjtet[3]; 
+		float denom = 1.0f / (u_3 + v_3 + w_3); 
+		u_3 *= denom; 
+		v_3 *= denom; 
+		w_3 *= denom; 
+		X = (u_3 * v1.x + v_3 * v2.x + w_3 * v3.x);
+		Y = (u_3 * v1.y + v_3 * v2.y + w_3 * v3.y);
+		Z = (u_3 * v1.z + v_3 * v2.z + w_3 * v3.z);
+	} }
 	// BAD
-	else if (signf(ScTP(q, p[1], p[0])) == signf(ScTP(q, p[0], p[3])) && signf(ScTP(q, p[0], p[3])) == signf(ScTP(q, p[3], p[1])) && lface != findex[2]) { face = findex[2]; tet = adjtet[2]; }
+	if (lface != findex[2]) { if (signf(u_2) == signf(v_2) && signf(v_2) == signf(w_2)) 
+	{ 
+		face = findex[2]; tet = adjtet[2]; 
+		float denom = 1.0f / (u_2 + v_2 + w_2); 
+		u_2 *= denom; 
+		v_2 *= denom; 
+		w_2 *= denom; 
+		X = (u_2 * v2.x + v_2 * v1.x + w_2 * v4.x);
+		Y = (u_2 * v2.y + v_2 * v1.y + w_2 * v4.y);
+		Z = (u_2 * v2.z + v_2 * v1.z + w_2 * v4.z);
+	} }
 	// CDA
-	else if (signf(ScTP(q, p[2], p[3])) == signf(ScTP(q, p[3], p[0])) && signf(ScTP(q, p[3], p[0])) == signf(ScTP(q, p[0], p[2])) && lface != findex[1]) { face = findex[1]; tet = adjtet[1]; }
+	if (lface != findex[1]) { if (signf(u_1) == signf(v_1) && signf(v_1) == signf(w_1)) 
+	{ 
+		face = findex[1]; tet = adjtet[1]; 
+		float denom = 1.0f / (u_1 + v_1 + w_1); 
+		u_1 *= denom; 
+		v_1 *= denom; 
+		w_1 *= denom; 
+		X = (u_1 * v3.x + v_1 * v4.x + w_1 * v1.x);
+		Y = (u_1 * v3.y + v_1 * v4.y + w_1 * v1.y);
+		Z = (u_1 * v3.z + v_1 * v4.z + w_1 * v1.z);
+	} }
 	// DCB
-	else if (signf(ScTP(q, p[3], p[2])) == signf(ScTP(q, p[2], p[1])) && signf(ScTP(q, p[2], p[1])) == signf(ScTP(q, p[1], p[3])) && lface != findex[0]) { face = findex[0]; tet = adjtet[0]; }
-	else {
-		printf("Error! No exit tet found. \n");
-		jetzt = true;
-		face = 0;
-		tet = 0;
-	}
+	if (lface != findex[0]) { if (signf(u_0) == signf(v_0) && signf(v_0) == signf(w_0)) 
+	{ 
+		face = findex[0]; tet = adjtet[0]; 
+		float denom = 1.0f / (u_0 + v_0 + w_0); 
+		u_0 *= denom; 
+		v_0 *= denom; 
+		w_0 *= denom; 
+		X = (u_0 * v4.x + v_0 * v3.x + w_0 * v2.x);
+		Y = (u_0 * v4.y + v_0 * v3.y + w_0 * v2.y);
+		Z = (u_0 * v4.z + v_0 * v3.z + w_0 * v2.z);
+	} }
+	// No face hit
+	if (face == 0 && tet == 0) { printf("Error! No exit tet found. \n"); }
+
+	dist = sqrt(pow(ray_o.x - X, 2) + pow(ray_o.y - Y, 2) + pow(ray_o.z - Z, 2));
 }
 
 

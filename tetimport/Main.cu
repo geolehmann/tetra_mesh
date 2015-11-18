@@ -2,6 +2,7 @@
 #include "tetgen_io.h"
 
 const int width = 320, height=240;
+const int spp = 4;
 
 
 RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
@@ -13,13 +14,14 @@ RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
 	node a1 = mesh->get_node(fc.node_a);
 	node a2 = mesh->get_node(fc.node_b);
 	node a3 = mesh->get_node(fc.node_c);
-	double c = intersect_dist(r, a1.f_node(), a2.f_node(), a3.f_node());
+	double c = firsthit.dist;
 	
-	float k = ((255-0) / (0-17));
-	float d = 0 - (17 * k);
+	
+	float k = ((255-0) / (0-10)); // in zweiter klammer erster wert ist untere grenze distanzwerte
+	float d = 0 - (10 * k);
 
-	int d2 = (c*k) + d;
-	return RGB(0,0,c); // return depth value
+	float d2 = (c*k) + d;
+	return RGB(c,0,d2); // return depth value
 }
 
 
@@ -27,6 +29,8 @@ RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
 
 int main()
 {
+	// die ersten beiden von ray.d haben keine auswirkung - deshalb immer gleiche distanzwerte!!!!!!!!!!!!!!!!!!!!!!!
+
 	// load tetrahedral model
 	tetrahedra_mesh tetmesh;
 	tetmesh.load_tet_ele("untitled.1.ele");
@@ -34,8 +38,8 @@ int main()
 	tetmesh.load_tet_node("untitled.1.node");
 	tetmesh.load_tet_face("untitled.1.face");
 	tetmesh.load_tet_t2f("untitled.1.t2f");
-	tetmesh.cam.o = make_float4(1.8, 4, 5, 0);
-	tetmesh.cam.d = make_float4(1, 0, 0, 0);
+	tetmesh.cam.o = make_float4(1.8, 4, 3, 0);
+	tetmesh.cam.d = make_float4(0.6, -1, 0, 0);
 	tetmesh.curr = tetmesh.cam;
 
 	// Get bounding box
@@ -55,6 +59,7 @@ int main()
 
 	// raytracing stuff
 	FILE *f2 = fopen("test3.txt", "w");
+
 	float4 camera_position = tetmesh.curr.o;
 	float4 camera_direction = normalize(tetmesh.curr.d);
 	float4 camera_up = make_float4(0, 0, 1, 0);
@@ -65,7 +70,7 @@ int main()
 	RGB *color=new RGB[width*height];
 	for (int y = 0; y < height; y++){
 		for (int x = 0; x < width; x++){
-			for (int s = 0; s < 4; s++){
+			for (int s = 0; s < spp; s++){
 
 				double normalized_x = (x / width) - 0.5;
 				double normalized_y = (y / height) - 0.5;
@@ -81,7 +86,7 @@ int main()
 
 				RGB c = trace(rt, &tetmesh, start, 0);
 				fprintf(f2, "%f %f %f \n", c.x,c.y,c.z);
-				color[(height - y - 1)*width + x] = color[(height - y - 1)*width + x] + (c/4);
+				color[(height - y - 1)*width + x] = color[(height - y - 1)*width + x] + (c/spp);
 			}
 		}
 	}

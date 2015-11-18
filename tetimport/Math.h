@@ -83,7 +83,7 @@ float ScTP(const float4 a, const float4 b, const float4 c)
 
 int signf(float x)
 {
-	if (x > 0.f) return 1;
+	if (x >= 0.f) return 1;
 	if (x < 0.f) return -1;
 	return 0;
 }
@@ -105,15 +105,6 @@ struct BBox
 
 
 float4 getNormal(float4 a, float4 b, float4 c) {	return(Cross(b-a,c-a)); }
-
-double intersect_dist(Ray ray, float4 a, float4 b, float4 c) //tested and works!!
-{
-	float4 N = normalize(Cross(b - a, c - a));
-	float D = Dot(N, a) * -1;
-	float NdotR = Dot(N, ray.d)* -1;
-	return (Dot(N, ray.o) + D) / NdotR;
-}
-
 
 struct RGB
 {
