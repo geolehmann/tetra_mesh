@@ -14,8 +14,7 @@ RGB trace(Ray r, tetrahedra_mesh *mesh, int32_t start, int depth)
 	node a1 = mesh->get_node(fc.node_a);
 	node a2 = mesh->get_node(fc.node_b);
 	node a3 = mesh->get_node(fc.node_c);
-	double c = firsthit.dist;
-	
+	double c = intersect_dist(r, a1.f_node(), a2.f_node(), a3.f_node());
 	
 	float k = ((255-0) / (0-10)); // in zweiter klammer erster wert ist untere grenze distanzwerte
 	float d = 0 - (10 * k);

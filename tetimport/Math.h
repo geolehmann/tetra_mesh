@@ -115,6 +115,19 @@ struct RGB
 	RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 };
 
+double intersect_dist(const Ray ray, float4 a, float4 b, float4 c) //tested and works!!
+{
+	float4 v0v1 = b - a;
+	float4 v0v2 = c - a;
+	float4 pvec = Cross(ray.d, v0v2);
+	float det = Dot(v0v1, pvec);
+	float invDet = 1 / det;
+	float4 tvec = ray.o - a;
+	float4 qvec = Cross(tvec, v0v1);
+	return abs(Dot(v0v2, qvec) * invDet);
+}
+
+
 // Random Number Generation, from karoly zsolnai
 std::mt19937 mersenneTwister;
 std::uniform_real_distribution<double> uniform;

@@ -322,61 +322,17 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], in
 	float v_0 = ScTP(q, p[2], p[1]);
 	float w_0 = ScTP(q, p[1], p[3]);
 
-	float X, Y, Z;
-
 	// ScTP funktioniert auch mit float4.
 	// ABC
-	if (lface != findex[3]) { if (signf(u_3) == signf(v_3) && signf(v_3) == signf(w_3)) 
-	{ 
-		face = findex[3]; tet = adjtet[3]; 
-		float denom = 1.0f / (u_3 + v_3 + w_3); 
-		u_3 *= denom; 
-		v_3 *= denom; 
-		w_3 *= denom; 
-		X = (u_3 * v1.x + v_3 * v2.x + w_3 * v3.x);
-		Y = (u_3 * v1.y + v_3 * v2.y + w_3 * v3.y);
-		Z = (u_3 * v1.z + v_3 * v2.z + w_3 * v3.z);
-	} }
+	if (lface != findex[3]) { if (signf(u_3) == signf(v_3) && signf(v_3) == signf(w_3)) { face = findex[3]; tet = adjtet[3]; } }
 	// BAD
-	if (lface != findex[2]) { if (signf(u_2) == signf(v_2) && signf(v_2) == signf(w_2)) 
-	{ 
-		face = findex[2]; tet = adjtet[2]; 
-		float denom = 1.0f / (u_2 + v_2 + w_2); 
-		u_2 *= denom; 
-		v_2 *= denom; 
-		w_2 *= denom; 
-		X = (u_2 * v2.x + v_2 * v1.x + w_2 * v4.x);
-		Y = (u_2 * v2.y + v_2 * v1.y + w_2 * v4.y);
-		Z = (u_2 * v2.z + v_2 * v1.z + w_2 * v4.z);
-	} }
+	if (lface != findex[2]) { if (signf(u_2) == signf(v_2) && signf(v_2) == signf(w_2)) { face = findex[2]; tet = adjtet[2]; } }
 	// CDA
-	if (lface != findex[1]) { if (signf(u_1) == signf(v_1) && signf(v_1) == signf(w_1)) 
-	{ 
-		face = findex[1]; tet = adjtet[1]; 
-		float denom = 1.0f / (u_1 + v_1 + w_1); 
-		u_1 *= denom; 
-		v_1 *= denom; 
-		w_1 *= denom; 
-		X = (u_1 * v3.x + v_1 * v4.x + w_1 * v1.x);
-		Y = (u_1 * v3.y + v_1 * v4.y + w_1 * v1.y);
-		Z = (u_1 * v3.z + v_1 * v4.z + w_1 * v1.z);
-	} }
+	if (lface != findex[1]) { if (signf(u_1) == signf(v_1) && signf(v_1) == signf(w_1)) { face = findex[1]; tet = adjtet[1]; } }
 	// DCB
-	if (lface != findex[0]) { if (signf(u_0) == signf(v_0) && signf(v_0) == signf(w_0)) 
-	{ 
-		face = findex[0]; tet = adjtet[0]; 
-		float denom = 1.0f / (u_0 + v_0 + w_0); 
-		u_0 *= denom; 
-		v_0 *= denom; 
-		w_0 *= denom; 
-		X = (u_0 * v4.x + v_0 * v3.x + w_0 * v2.x);
-		Y = (u_0 * v4.y + v_0 * v3.y + w_0 * v2.y);
-		Z = (u_0 * v4.z + v_0 * v3.z + w_0 * v2.z);
-	} }
+	if (lface != findex[0]) { if (signf(u_0) == signf(v_0) && signf(v_0) == signf(w_0)) { face = findex[0]; tet = adjtet[0]; } }
 	// No face hit
 	if (face == 0 && tet == 0) { printf("Error! No exit tet found. \n"); }
-
-	dist = sqrt(pow(ray_o.x - X, 2) + pow(ray_o.y - Y, 2) + pow(ray_o.z - Z, 2));
 }
 
 
