@@ -17,17 +17,19 @@ This project aims to expand their idea by using GPGPU with Nvidia CUDA to speed 
 The Tetgen software developed by Hang Si(http://wias-berlin.de/software/tetgen/) is used for tetrahedralization
 of the scene.
 
-**Current status (30/10/2015):**
+**Current status (19/11/2015):**
 
 Import Tetgen files .node/.ele/.face/.edge/.neigh  - done!  
 Ray-tetrahedra intersection routine - done!  
 Ray-in-tetrahedra-testing routine - done!  
 Find tetrahedra with camer position - done!  
 CUDA kernel for ray traversal - done!
+Ray-triangle intersection routine for raytracing - done! 
+visualize depth information - done!  
 
 Todo:  
-Put mesh into shared memory 
-Ray-triangle intersection routine for raytracing  
+Put mesh into unified memory 
+ 
 
 
 
