@@ -43,7 +43,6 @@ class tetrahedra_mesh
 public:
 	uint32_t tetnum, nodenum, facenum, edgenum;
 	BBox boundingbox;
-	Ray curr;
 	Ray cam;
 
 	void load_tet_neigh(std::string filename);
@@ -296,7 +295,7 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], in
 
 	// translate Ray to origin and vertices same as ray
 	ray_d = ray_o + (ray_d * 1000);
-
+	
 	float4 q = ray_d - ray_o;
 
 	float4 v1 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A

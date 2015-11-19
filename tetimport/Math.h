@@ -43,15 +43,19 @@ float4 operator+(const float4 &a, const float4 &b) {
 
 }
 
-float4 operator*(const float4 &a, const double &b) {
+float4 operator*(const float4 &a, const float &b) {
 
 	return make_float4(a.x*b, a.y*b, a.z*b, 0);
 
 }
 
+float4 operator/(const float4 &a, const float &b) {
 
+	return make_float4(a.x/b, a.y/b, a.z/b, 0);
 
-float4 normalize(const float4 &a)
+}
+
+float4 normalize(float4 a)
 { 
 	float f = sqrt(a.x*a.x + a.y*a.y + a.z*a.z); 
 	return make_float4(a.x/f, a.y/f, a.z/f, 0);
@@ -73,7 +77,7 @@ inline float4 Cross(const float4 a, const float4 b)
 
 struct Ray 
 { 
-	float4 o, d; 
+	float4 o, d, u; 
 };
 
 float ScTP(const float4 a, const float4 b, const float4 c)
@@ -108,27 +112,26 @@ float4 getNormal(float4 a, float4 b, float4 c) {	return(Cross(b-a,c-a)); }
 
 struct RGB
 {
-	double x, y, z;
-	RGB(double x0, double y0, double z0){ x = x0; y = y0; z = z0; }
-	RGB(double xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
-	RGB operator/(double b) const { return RGB(x / b, y / b, z / b); }
+	float x, y, z;
+	RGB(float x0, float y0, float z0){ x = x0; y = y0; z = z0; }
+	RGB(float xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
+	RGB operator/(float b) const { return RGB(x / b, y / b, z / b); }
 	RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 };
-
-double intersect_dist(const Ray ray, float4 a, float4 b, float4 c) //tested and works!!
-{
-	float4 v0v1 = b - a;
-	float4 v0v2 = c - a;
-	float4 pvec = Cross(ray.d, v0v2);
-	float det = Dot(v0v1, pvec);
-	float invDet = 1 / det;
-	float4 tvec = ray.o - a;
-	float4 qvec = Cross(tvec, v0v1);
-	return abs(Dot(v0v2, qvec) * invDet);
-}
-
 
 // Random Number Generation, from karoly zsolnai
 std::mt19937 mersenneTwister;
 std::uniform_real_distribution<double> uniform;
 #define RND (2.0*uniform(mersenneTwister)-1.0)	
+
+float intersect_dist(Ray ray, float4 a, float4 b, float4 c) //tested and works!!
+{
+float4 e1 = b - a;
+float4 e2 = c - a;
+float4 q = Cross(ray.d,e2);
+float a_ = Dot(e1,q);
+float4 s = ray.o - a;
+float4 r = Cross(s,e1);
+return Dot(e2,r) / a_;
+}
+
