@@ -24,7 +24,7 @@ Ray-tetrahedra intersection routine - done!
 Ray-in-tetrahedra-testing routine - done!  
 Find tetrahedra with camer position - done!  
 CUDA kernel for ray traversal - done!
-Ray-triangle intersection routine for raytracing - done! 
+Ray-triangle intersection routine for raytracing - done!  
 visualize depth information - done!  
 
 Todo:  
