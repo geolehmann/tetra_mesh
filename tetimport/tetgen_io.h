@@ -4,23 +4,24 @@
 #include <sstream>
 #include <vector>
 #include <deque>
+#include <ctime>
 
 #include "Math.h"
 
-struct node // nodes have an index and three coordinates
+struct node 
 {
 	uint32_t index;
 	float x, y, z;
 	float4 f_node(){ return make_float4(x, y, z, 0); }
 };
 
-struct edge // an edge consists of two node indices and the index of the edge
+struct edge
 {
 	uint32_t index;
 	uint32_t node1, node2;
 };
 
-struct face //each face has three node indices, an own index and information whether it is constrained(=model triangle) or wall
+struct face
 {
 	uint32_t index;
 	uint32_t node_a, node_b, node_c;
@@ -29,7 +30,7 @@ struct face //each face has three node indices, an own index and information whe
 };
 
 
-class tetrahedra // tetrahedras have indexes for the tetrahedra itself and for faces, nodes and neighbor(adjecent) tetrahedra
+class tetrahedra
 {
 public:
 	uint32_t number;
@@ -42,8 +43,11 @@ class tetrahedra_mesh
 {
 public:
 	uint32_t tetnum, nodenum, facenum, edgenum;
-	BBox boundingbox;
-	Ray cam;
+	std::deque<tetrahedra>tetrahedras;
+	std::deque<node>nodes;
+	std::deque<face>faces;
+	std::deque<edge>edges;
+	uint32_t max = 1000000000;
 
 	void load_tet_neigh(std::string filename);
 	void load_tet_ele(std::string filename);
@@ -51,24 +55,6 @@ public:
 	void load_tet_face(std::string filename);
 	void load_tet_t2f(std::string filename);
 	void load_tet_edge(std::string filename);
-
-	void load_tetmodel(std::string filename);
-
-
-	bool IsPointInTetrahedron(tetrahedra t, float4 p);
-	int32_t GetTetrahedraFromPoint(float4 p);
-	void init_BBox();
-	tetrahedra get_tetrahedra(int32_t t){ return tetrahedras.at(t); }
-	face get_face(int32_t t){ return faces.at(t); }
-	node get_node(int32_t t){ return nodes.at(t); }
-
-private:
-	std::deque<tetrahedra>tetrahedras;
-	std::deque<node>nodes;
-	std::deque<face>faces;
-	std::deque<edge>edges;
-	uint32_t max = 1000000000;
-
 };
 
 void tetrahedra_mesh::load_tet_ele(std::string filename)
@@ -273,19 +259,55 @@ void tetrahedra_mesh::load_tet_t2f(std::string filename)
 //--------------------------------------------------------------------------------------------------------------------------------------
 
 
-bool tetrahedra_mesh::IsPointInTetrahedron(tetrahedra t, float4 p)
+
+
+bool IsPointInTetrahedron(float4 v1,float4 v2,float4 v3, float4 v4, float4 p)
 {
-	float4 v1 = make_float4(nodes.at(t.nindex1).x, nodes.at(t.nindex1).y, nodes.at(t.nindex1).z, 0);
-	float4 v2 = make_float4(nodes.at(t.nindex2).x, nodes.at(t.nindex2).y, nodes.at(t.nindex2).z, 0);
-	float4 v3 = make_float4(nodes.at(t.nindex3).x, nodes.at(t.nindex3).y, nodes.at(t.nindex3).z, 0);
-	float4 v4 = make_float4(nodes.at(t.nindex4).x, nodes.at(t.nindex4).y, nodes.at(t.nindex4).z, 0);
-	// SameSide funktioniert mit ziemlicher Sicherheit - 03.11.2015
 	return SameSide(v1, v2, v3, v4, p) &&
 		SameSide(v2, v3, v4, v1, p) &&
 		SameSide(v3, v4, v1, v2, p) &&
 		SameSide(v4, v1, v2, v3, p);
 }
 
+int32_t GetTetrahedraFromPoint(mesh2* mesh, float4 p)
+{
+	for (int32_t i = 0; i < mesh->tetnum;i++)
+	{
+		float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
+		float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
+		float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
+		float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
+		if (IsPointInTetrahedron(v1,v2,v3,v4, p) == true) return i;
+	}
+	return -1;
+}
+
+BBox init_BBox(mesh2* mesh)
+{
+	BBox boundingbox;
+	boundingbox.min = make_float4(-1000000000, -1000000000, -1000000000, 0);
+	boundingbox.max = make_float4(1000000000, 1000000000, 1000000000, 0);
+	for (int i = 0; i < mesh->nodenum;i++)
+	{
+		if (boundingbox.min.x < mesh->n_x[i])  boundingbox.min.x = mesh->n_x[i];
+		if (boundingbox.max.x > mesh->n_x[i])  boundingbox.max.x = mesh->n_x[i];
+		if (boundingbox.min.y < mesh->n_y[i])  boundingbox.min.y = mesh->n_y[i];
+		if (boundingbox.max.y > mesh->n_y[i])  boundingbox.max.y = mesh->n_y[i];
+		if (boundingbox.min.z < mesh->n_z[i])  boundingbox.min.z = mesh->n_z[i];
+		if (boundingbox.max.z > mesh->n_z[i])  boundingbox.max.z = mesh->n_z[i];
+	}
+	return boundingbox;
+}
+
+class rayhit
+{
+public:
+	int32_t tet;
+	int32_t face;
+	float4 pos;
+	bool wall = false;
+	bool constrained = false;
+};
 
 void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
@@ -295,7 +317,7 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], in
 
 	// translate Ray to origin and vertices same as ray
 	ray_d = ray_o + (ray_d * 1000);
-	
+
 	float4 q = ray_d - ray_o;
 
 	float4 v1 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
@@ -335,55 +357,19 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], in
 }
 
 
-
-int32_t tetrahedra_mesh::GetTetrahedraFromPoint(float4 p)
-{
-	for (auto t : tetrahedras)
-	{
-		if (IsPointInTetrahedron(t, p) == true) return t.number;
-	}
-	return -1;
-}
-
-void tetrahedra_mesh::init_BBox()
-{
-	boundingbox.min = make_float4(-1000000000, -1000000000, -1000000000, 0);
-	boundingbox.max = make_float4(1000000000, 1000000000, 1000000000, 0);
-	for (auto n : nodes)
-	{
-		if (boundingbox.min.x < n.x)  boundingbox.min.x = n.x;
-		if (boundingbox.max.x > n.x)  boundingbox.max.x = n.x;
-		if (boundingbox.min.y < n.y)  boundingbox.min.y = n.y;
-		if (boundingbox.max.y > n.y)  boundingbox.max.y = n.y;
-		if (boundingbox.min.z < n.z)  boundingbox.min.z = n.z;
-		if (boundingbox.max.z > n.z)  boundingbox.max.z = n.z;
-	}
-}
-
-class rayhit
-{
-public:
-	int32_t tet;
-	int32_t face;
-	float4 pos;
-	bool wall = false;
-	bool constrained = false;
-};
-
-void traverse_ray(tetrahedra_mesh *mesh, Ray ray, int32_t start, rayhit &d, int depth)
+void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int depth)
 {
 	int32_t nexttet, nextface, lastface = 0;
 
 	while (1)
 	{
-		tetrahedra *h = &mesh->get_tetrahedra(start);
-		int32_t findex[4] = { h->findex1, h->findex2, h->findex3, h->findex4 };
-		int32_t adjtets[4] = { h->adjtet1, h->adjtet2, h->adjtet3, h->adjtet4 };
+		int32_t findex[4] = { mesh->t_findex1[start], mesh->t_findex2[start], mesh->t_findex3[start], mesh->t_findex4[start] };
+		int32_t adjtets[4] = { mesh->t_adjtet1[start], mesh->t_adjtet2[start], mesh->t_adjtet3[start], mesh->t_adjtet4[start] };
 		float4 nodes[4] = {
-			make_float4(mesh->get_node(h->nindex1).x, mesh->get_node(h->nindex1).y, mesh->get_node(h->nindex1).z, 0),
-			make_float4(mesh->get_node(h->nindex2).x, mesh->get_node(h->nindex2).y, mesh->get_node(h->nindex2).z, 0),
-			make_float4(mesh->get_node(h->nindex3).x, mesh->get_node(h->nindex3).y, mesh->get_node(h->nindex3).z, 0),
-			make_float4(mesh->get_node(h->nindex4).x, mesh->get_node(h->nindex4).y, mesh->get_node(h->nindex4).z, 0) }; // for every node xyz is required...shit
+			make_float4(mesh->n_x[mesh->t_nindex1[start]], mesh->n_y[mesh->t_nindex1[start]], mesh->n_z[mesh->t_nindex1[start]], 0),
+			make_float4(mesh->n_x[mesh->t_nindex2[start]], mesh->n_y[mesh->t_nindex2[start]], mesh->n_z[mesh->t_nindex2[start]], 0),
+			make_float4(mesh->n_x[mesh->t_nindex3[start]], mesh->n_y[mesh->t_nindex3[start]], mesh->n_z[mesh->t_nindex3[start]], 0),
+			make_float4(mesh->n_x[mesh->t_nindex4[start]], mesh->n_y[mesh->t_nindex4[start]], mesh->n_z[mesh->t_nindex4[start]], 0) };
 
 
 		GetExitTet(ray.o, ray.d, nodes, findex, adjtets, lastface, nextface, nexttet);
@@ -391,23 +377,17 @@ void traverse_ray(tetrahedra_mesh *mesh, Ray ray, int32_t start, rayhit &d, int 
 		{
 			d.wall = true;
 			d.face=lastface;
-			fprintf(stderr, "Stopped at null face. \n"); //debug msg
+			fprintf(stderr, "Stopped at null face. \n");
 			break;
 		}
 		depth++;
-#ifndef NO_MSG	
-		fprintf(stderr, "Number of next tetrahedra: %lu \n", nexttet);
-		fprintf(stderr, "Number of next face: %lu \n\n", nextface); 
-#endif
 
-		if (mesh->get_face(nextface).face_is_constrained == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
-		if (mesh->get_face(nextface).face_is_wall == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
+		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
+		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
 		if (nexttet == -1) { d.wall = true; d.face = nextface; d.tet = start; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
 		start = nexttet;
 	}
-#ifndef NO_MSG
-	if (d.wall == true) fprintf_s(stderr, "Wall hit.\n"); // finally... (27.10.2015)
-	if (d.constrained == true) fprintf_s(stderr, "Triangle hit.\n"); // now i have: index of face(=triangle) which is intersected by ray.
-#endif
 }
+
+

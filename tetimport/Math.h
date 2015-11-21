@@ -6,31 +6,6 @@
 
 #define PI 3.1415926536
 
-struct Vec {
-	double x, y, z;
-	Vec(double x0, double y0, double z0){ x = x0; y = y0; z = z0; }
-	Vec(double xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
-	Vec operator+(const Vec &b) const { return Vec(x + b.x, y + b.y, z + b.z); }
-	Vec operator+=(const Vec &b) { x += b.x; y += b.y; z += b.z; return (*this); }
-	Vec operator-(const Vec &b) const { return Vec(x - b.x, y - b.y, z - b.z); }
-	Vec operator*(double b) const { return Vec(x*b, y*b, z*b); }
-	Vec operator*(const Vec &b) const { return Vec(x*b.x, y*b.y, z*b.z); }
-	Vec operator*=(const Vec &b) { x *= b.x; y *= b.y; z *= b.z; return (*this); }
-	Vec operator/(double b) const { return Vec(x / b, y / b, z / b); }
-	Vec operator/(const Vec &b) const { return Vec(x / b.x, y / b.y, z / b.z); }
-	bool operator<(const Vec &b) const { return x < b.x && y < b.y && z < b.z; }
-	bool operator>(const Vec &b) const { return x > b.x && y > b.y && z > b.z; }
-	Vec& norm(){ return *this = *this * (1 / sqrt(x*x + y*y + z*z)); }
-	double length() const { return sqrt(x*x + y*y + z*z); }
-	double dot(const Vec &b) const { return x*b.x + y*b.y + z*b.z; }
-	double avg() const { return (x + y + z) / 3.0; }
-	double max() const { return x > y ? (x > z ? x : z) : (y > z ? y : z); }
-	double min() const { return x < y ? (x < z ? x : z) : (y < z ? y : z); }
-	Vec operator%(const Vec &b) const { return Vec(y*b.z - z*b.y, z*b.x - x*b.z, x*b.y - y*b.x); }
-	const double& operator[](size_t i) const { return i == 0 ? x : (i == 1 ? y : z); }
-};
-
-
 float4 operator-(const float4 &a, const float4 &b) {
 
 	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
@@ -108,7 +83,10 @@ struct BBox
 };
 
 
-float4 getNormal(float4 a, float4 b, float4 c) {	return(Cross(b-a,c-a)); }
+float4 getNormal(float4 a, float4 b, float4 c) 
+{	
+	return(Cross(b-a,c-a)); 
+}
 
 struct RGB
 {
@@ -122,7 +100,7 @@ struct RGB
 // Random Number Generation, from karoly zsolnai
 std::mt19937 mersenneTwister;
 std::uniform_real_distribution<double> uniform;
-#define RND (2.0*uniform(mersenneTwister)-1.0)	
+#define RND2 (uniform(mersenneTwister))	
 
 float intersect_dist(Ray ray, float4 a, float4 b, float4 c) //tested and works!!
 {
@@ -135,3 +113,38 @@ float4 r = Cross(s,e1);
 return Dot(e2,r) / a_;
 }
 
+// from rayito - github.com/Tecla/Rayito
+Ray makeCameraRay(float fieldOfViewInDegrees,const float4& origin,const float4& target,const float4& targetUpDirection,float xScreenPos0To1,float yScreenPos0To1)
+{
+	float4 forward = normalize(target - origin);
+	float4 right = normalize(Cross(forward, targetUpDirection));
+	float4 up = normalize(Cross(right, forward));
+	float tanFov = std::tan(fieldOfViewInDegrees * PI / 180.0f);
+	Ray ray;
+	ray.o = origin;
+	ray.d = forward + right * ((xScreenPos0To1 - 0.5f) * tanFov) + up * ((yScreenPos0To1 - 0.5f) * tanFov);
+	ray.d = normalize(ray.d);
+	return ray;
+}
+
+struct mesh2
+{
+	// nodes
+	uint32_t *n_index;
+	float *n_x, *n_y, *n_z;
+
+	//faces
+	uint32_t *f_index;
+	uint32_t *f_node_a, *f_node_b, *f_node_c;
+	bool *face_is_constrained = false;
+	bool *face_is_wall = false;
+
+	// tetrahedra
+	uint32_t *t_index;
+	int32_t *t_findex1, *t_findex2, *t_findex3, *t_findex4;
+	int32_t *t_nindex1, *t_nindex2, *t_nindex3, *t_nindex4;
+	int32_t *t_adjtet1, *t_adjtet2, *t_adjtet3, *t_adjtet4;
+
+	//mesh
+	uint32_t tetnum, nodenum, facenum, edgenum;
+};

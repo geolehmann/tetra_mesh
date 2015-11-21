@@ -1,0 +1,42 @@
+snippet: test distance
+
+	Ray test;
+	test.d = make_float4(0, 1, 0, 0);
+	test.o = make_float4(0.2, -1, 0.2, 0);
+
+	double g = intersect_dist(test, make_float4(0, 2, 0, 0), make_float4(0, 2, 2, 0), make_float4(2, 2, 0, 0));
+
+snippet: horizontal gradient (http://forums.codeguru.com/showthread.php?259953-Code-to-create-Color-Gradient-programatically)
+	float R = (100 * (x - 0) + 30 * (width - x)) / (width - 0);
+	float G = (10 * (x - 0) + 100 * (width - x)) / (width - 0);
+	float B = (40 * (x - 0) + 25 * (width - x)) / (width - 0);
+ 
+snippet: traverse_ray überprüfen, mit tetview nodes überprüfen
+
+	rayhit firsthit1;
+	Ray test;
+	test.d = make_float4(0, -1, 0, 0);
+	test.o = make_float4(2.2, 5.06, 3.94, 0);
+	int32_t s;
+	s = tetmesh.GetTetrahedraFromPoint(tetmesh.cam.o);
+	traverse_ray(&tetmesh, test, s, firsthit1);
+
+snippet: ScTP testing
+	
+	float xy = ScTP(make_float4(1, 5, 5, 0), make_float4(5, 1, 1, 0), make_float4(2, 3, 4, 0));
+
+
+snippet: GetExitTet testing
+
+	Ray cam;
+	cam.o = make_float4(1, 1, 0.1, 0);
+	cam.d = make_float4(0, 0, 1, 0);
+	int32_t nexttet, nextface, lastface = 0;
+	int32_t findex[4] = { 1, 2, 3, 4 };
+	int32_t adjtets[4] = { 5, 6, 7, 8 };
+	float4 nodes[4] = {
+		make_float4(0,0,0, 0),
+		make_float4(2,0,0, 0),
+		make_float4(0,2,0, 0),
+		make_float4(0,0,2, 0) };
+	GetExitTet(cam.o, cam.d, nodes,findex,adjtets,lastface,nextface,nexttet);
