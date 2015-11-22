@@ -6,43 +6,43 @@
 
 #define PI 3.1415926536
 
-float4 operator-(const float4 &a, const float4 &b) {
+__device__ float4 operator-(const float4 &a, const float4 &b) {
 
 	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
 
 }
 
-float4 operator+(const float4 &a, const float4 &b) {
+__device__ float4 operator+(const float4 &a, const float4 &b) {
 
 	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, 0);
 
 }
 
-float4 operator*(const float4 &a, const float &b) {
+__device__ float4 operator*(const float4 &a, const float &b) {
 
 	return make_float4(a.x*b, a.y*b, a.z*b, 0);
 
 }
 
-float4 operator/(const float4 &a, const float &b) {
+__device__ float4 operator/(const float4 &a, const float &b) {
 
 	return make_float4(a.x/b, a.y/b, a.z/b, 0);
 
 }
 
-float4 normalize(float4 a)
+__device__ float4 normalize(float4 a)
 { 
 	float f = sqrt(a.x*a.x + a.y*a.y + a.z*a.z); 
 	return make_float4(a.x/f, a.y/f, a.z/f, 0);
 }
 
 
-inline float Dot(const float4 a, const float4 b)
+__device__  float Dot(const float4 a, const float4 b)
 {
 	return  a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-inline float4 Cross(const float4 a, const float4 b)
+__device__  float4 Cross(const float4 a, const float4 b)
 {
 	float4 cross = { a.y * b.z - a.z * b.y,
 					 a.z * b.x - a.x * b.z,
@@ -55,12 +55,12 @@ struct Ray
 	float4 o, d, u; 
 };
 
-float ScTP(const float4 a, const float4 b, const float4 c)
+__device__ float ScTP(const float4 a, const float4 b, const float4 c)
 {
 	return Dot(a, Cross(b, c));
 }
 
-int signf(float x)
+__device__ int signf(float x)
 {
 	if (x >= 0.f) return 1;
 	if (x < 0.f) return -1;
@@ -68,7 +68,7 @@ int signf(float x)
 }
 
 
-bool SameSide(float4 v1, float4 v2, float4 v3, float4 v4, float4 p)
+__device__ bool SameSide(float4 v1, float4 v2, float4 v3, float4 v4, float4 p)
 {
 	float4 normal = Cross(v2 - v1, v3 - v1);
 	float dotV4 = Dot(normal, v4 - v1);
@@ -83,7 +83,7 @@ struct BBox
 };
 
 
-float4 getNormal(float4 a, float4 b, float4 c) 
+__device__ float4 getNormal(float4 a, float4 b, float4 c)
 {	
 	return(Cross(b-a,c-a)); 
 }
@@ -91,18 +91,13 @@ float4 getNormal(float4 a, float4 b, float4 c)
 struct RGB
 {
 	float x, y, z;
-	RGB(float x0, float y0, float z0){ x = x0; y = y0; z = z0; }
-	RGB(float xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
-	RGB operator/(float b) const { return RGB(x / b, y / b, z / b); }
-	RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
+	__device__ RGB(float x0, float y0, float z0){ x = x0; y = y0; z = z0; }
+	__device__ RGB(float xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
+	__device__ RGB operator/(float b) const { return RGB(x / b, y / b, z / b); }
+	__device__ RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 };
 
-// Random Number Generation, from karoly zsolnai
-std::mt19937 mersenneTwister;
-std::uniform_real_distribution<double> uniform;
-#define RND2 (uniform(mersenneTwister))	
-
-float intersect_dist(Ray ray, float4 a, float4 b, float4 c) //tested and works!!
+__device__ float intersect_dist(Ray ray, float4 a, float4 b, float4 c) //tested and works!!
 {
 float4 e1 = b - a;
 float4 e2 = c - a;
@@ -114,7 +109,7 @@ return Dot(e2,r) / a_;
 }
 
 // from rayito - github.com/Tecla/Rayito
-Ray makeCameraRay(float fieldOfViewInDegrees,const float4& origin,const float4& target,const float4& targetUpDirection,float xScreenPos0To1,float yScreenPos0To1)
+__device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, const float4& target, const float4& targetUpDirection, float xScreenPos0To1, float yScreenPos0To1)
 {
 	float4 forward = normalize(target - origin);
 	float4 right = normalize(Cross(forward, targetUpDirection));

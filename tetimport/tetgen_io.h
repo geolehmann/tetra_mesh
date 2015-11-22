@@ -261,7 +261,7 @@ void tetrahedra_mesh::load_tet_t2f(std::string filename)
 
 
 
-bool IsPointInTetrahedron(float4 v1,float4 v2,float4 v3, float4 v4, float4 p)
+__device__ bool IsPointInTetrahedron(float4 v1, float4 v2, float4 v3, float4 v4, float4 p)
 {
 	return SameSide(v1, v2, v3, v4, p) &&
 		SameSide(v2, v3, v4, v1, p) &&
@@ -269,7 +269,7 @@ bool IsPointInTetrahedron(float4 v1,float4 v2,float4 v3, float4 v4, float4 p)
 		SameSide(v4, v1, v2, v3, p);
 }
 
-int32_t GetTetrahedraFromPoint(mesh2* mesh, float4 p)
+__device__ int32_t GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 {
 	for (uint32_t i = 0; i < mesh->tetnum;i++)
 	{
@@ -309,7 +309,7 @@ public:
 	bool constrained = false;
 };
 
-void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
+__device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
 	face = 0;
 	tet = 0;
@@ -357,7 +357,7 @@ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], in
 }
 
 
-void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int depth)
+__device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int depth)
 {
 	int32_t nexttet, nextface, lastface = 0;
 
@@ -377,7 +377,7 @@ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int depth)
 		{
 			d.wall = true;
 			d.face=lastface;
-			fprintf(stderr, "Stopped at null face. \n");
+			//cuPrintf("Stopped at null face. \n");
 			break;
 		}
 		depth++;
