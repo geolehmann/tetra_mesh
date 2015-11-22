@@ -1,4 +1,5 @@
 #include "tetgen_io.h"
+#include "cu_gl.h"
 
 const int width = 320, height=240, spp = 4;
 
@@ -49,7 +50,7 @@ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d,floa
 }
 
 
-int main()
+int main(int argc, char *argv[])
 {
 	tetrahedra_mesh tetmesh;
 	tetmesh.load_tet_ele("test1.1.ele");
@@ -152,9 +153,8 @@ int main()
 		fprintf_s(stderr, "Raytracing started... \n\n");
 	}
 
-
 	clock_t t1 = clock();
-	renderKernel(mesh2, start,cam_o,cam_d,cam_u);
+	renderKernel(mesh2, start, cam_o, cam_d, cam_u);
 	clock_t t2 = clock();
 	double t = (double)(t2 - t1) / CLOCKS_PER_SEC;
 	printf("\nRender time: %fs.\n", t);

@@ -22,6 +22,7 @@
     <CudaCompile Include="Main.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cu_gl.h" />
     <ClInclude Include="Math.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
@@ -78,8 +79,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\lib\x64;$(LibraryPath)</LibraryPath>
+    <IncludePath>..\Externals\glut\include;..\Externals\glew-1.13.0\include;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\include;$(IncludePath)</IncludePath>
+    <LibraryPath>..\Externals\glew-1.13.0\lib\Release\x64;..\Externals\glut\lib.x64;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\include;$(IncludePath)</IncludePath>
@@ -103,7 +104,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>cudart.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glew32s.lib;glut32.lib;cudart.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>

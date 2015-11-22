@@ -271,7 +271,7 @@ bool IsPointInTetrahedron(float4 v1,float4 v2,float4 v3, float4 v4, float4 p)
 
 int32_t GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 {
-	for (int32_t i = 0; i < mesh->tetnum;i++)
+	for (uint32_t i = 0; i < mesh->tetnum;i++)
 	{
 		float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
 		float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
@@ -287,7 +287,7 @@ BBox init_BBox(mesh2* mesh)
 	BBox boundingbox;
 	boundingbox.min = make_float4(-1000000000, -1000000000, -1000000000, 0);
 	boundingbox.max = make_float4(1000000000, 1000000000, 1000000000, 0);
-	for (int i = 0; i < mesh->nodenum;i++)
+	for (uint32_t i = 0; i < mesh->nodenum;i++)
 	{
 		if (boundingbox.min.x < mesh->n_x[i])  boundingbox.min.x = mesh->n_x[i];
 		if (boundingbox.max.x > mesh->n_x[i])  boundingbox.max.x = mesh->n_x[i];

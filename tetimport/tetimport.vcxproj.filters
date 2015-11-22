@@ -26,5 +26,8 @@
     <ClInclude Include="tetgen_io.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="cu_gl.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
