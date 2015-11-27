@@ -1,4 +1,4 @@
-ï»¿#pragma once
+#pragma once
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -8,7 +8,9 @@
 
 #include "Math.h"
 
-struct node 
+__managed__ int32_t start = 0;
+
+struct node
 {
 	uint32_t index;
 	float x, y, z;
@@ -25,8 +27,8 @@ struct face
 {
 	uint32_t index;
 	uint32_t node_a, node_b, node_c;
-	bool face_is_constrained=false;
-	bool face_is_wall=false;
+	bool face_is_constrained = false;
+	bool face_is_wall = false;
 };
 
 
@@ -73,7 +75,7 @@ void tetrahedra_mesh::load_tet_ele(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				tetnum = ints.at(0); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				tetrahedras.resize(tetnum, tet1); //Tetrahedra-Deque fÃ¼llen
+				tetrahedras.resize(tetnum, tet1); //Tetrahedra-Deque füllen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -137,7 +139,7 @@ void tetrahedra_mesh::load_tet_node(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				nodenum = int(ints.at(0)); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				nodes.resize(nodenum, nd1); //Tetrahedra-Deque fÃ¼llen
+				nodes.resize(nodenum, nd1); //Tetrahedra-Deque füllen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -171,7 +173,7 @@ void tetrahedra_mesh::load_tet_face(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				facenum = int(ints.at(0)); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				faces.resize(facenum, fc1); //Tetrahedra-Deque fÃ¼llen
+				faces.resize(facenum, fc1); //Tetrahedra-Deque füllen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -183,7 +185,7 @@ void tetrahedra_mesh::load_tet_face(std::string filename)
 				if (ints.at(4) == -1) faces.at(ints.at(0)).face_is_constrained = true;
 
 				if (ints.at(5) == -1 || ints.at(6) == -1) { faces.at(ints.at(0)).face_is_wall = true; }
-				
+
 			}
 			num++;
 		}
@@ -211,7 +213,7 @@ void tetrahedra_mesh::load_tet_edge(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				edgenum = int(ints.at(0)); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				edges.resize(edgenum, ed1); //Tetrahedra-Deque fÃ¼llen
+				edges.resize(edgenum, ed1); //Tetrahedra-Deque füllen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -240,7 +242,7 @@ void tetrahedra_mesh::load_tet_t2f(std::string filename)
 			std::stringstream in(line);
 			std::vector<int32_t> ints;
 			copy(std::istream_iterator<int32_t, char>(in), std::istream_iterator<int32_t, char>(), back_inserter(ints));
-			
+
 			if (ints.size() != NULL) // alle Zeilen
 			{
 				tetrahedras.at(ints.at(0) - 1).findex1 = ints.at(1);
@@ -269,17 +271,16 @@ __device__ bool IsPointInTetrahedron(float4 v1, float4 v2, float4 v3, float4 v4,
 		SameSide(v4, v1, v2, v3, p);
 }
 
-__device__ int32_t GetTetrahedraFromPoint(mesh2* mesh, float4 p)
+__global__ void GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 {
-	for (uint32_t i = 0; i < mesh->tetnum;i++)
-	{
+		int i = blockIdx.x;
+
 		float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
 		float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
 		float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
 		float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
-		if (IsPointInTetrahedron(v1,v2,v3,v4, p) == true) return i;
-	}
-	return -1;
+		if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) start=i;
+
 }
 
 BBox init_BBox(mesh2* mesh)
@@ -287,7 +288,7 @@ BBox init_BBox(mesh2* mesh)
 	BBox boundingbox;
 	boundingbox.min = make_float4(-1000000000, -1000000000, -1000000000, 0);
 	boundingbox.max = make_float4(1000000000, 1000000000, 1000000000, 0);
-	for (uint32_t i = 0; i < mesh->nodenum;i++)
+	for (uint32_t i = 0; i < mesh->nodenum; i++)
 	{
 		if (boundingbox.min.x < mesh->n_x[i])  boundingbox.min.x = mesh->n_x[i];
 		if (boundingbox.max.x > mesh->n_x[i])  boundingbox.max.x = mesh->n_x[i];
@@ -376,7 +377,7 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 		if (nexttet == 0 || nextface == 0)
 		{
 			d.wall = true;
-			d.face=lastface;
+			d.face = lastface;
 			//cuPrintf("Stopped at null face. \n");
 			break;
 		}
