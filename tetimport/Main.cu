@@ -2,8 +2,22 @@
 #include "cu_gl.h"
 #include "cuPrintf.cuh"
 #include <curand.h>
+#include <curand_kernel.h>
 
-const int width = 320, height=240, spp = 4;
+const int width = 800, height=600, spp = 8;
+
+
+
+unsigned int WangHash(unsigned int a) {
+	a = (a ^ 61) ^ (a >> 16);
+	a = a + (a << 3);
+	a = a ^ (a >> 4);
+	a = a * 0x27d4eb2d;
+	a = a ^ (a >> 15);
+	return a;
+}
+
+
 
 // CUDA error checking
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -15,23 +29,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 		system("PAUSE");
 		if (abort) exit(code);
 	}
-}
-
-__device__ static float RND2(unsigned int *seed0, unsigned int *seed1) {
-	*seed0 = 36969 * ((*seed0) & 65535) + ((*seed0) >> 16);  // hash the seeds using bitwise AND and bitshifts
-	*seed1 = 18000 * ((*seed1) & 65535) + ((*seed1) >> 16);
-
-	unsigned int ires = ((*seed0) << 16) + (*seed1);
-
-	// Convert to float
-	union {
-		float f;
-		unsigned int ui;
-	} res;
-
-	res.ui = (ires & 0x007fffff) | 0x40000000;  // bitwise AND, bitwise OR
-
-	return (res.f - 2.f) / 2.f;
 }
 
 
@@ -58,19 +55,23 @@ __device__ RGB radiance(Ray r, mesh2 *mesh, int32_t start, int depth)
 }
 
 
-__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d, float4 cam_u, float4 *c)
+__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d, float4 cam_u, float4 *c, unsigned int hashedframenumber)
 {
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-	//unsigned int i = (height - y - 1)*width + x;
 	unsigned int i = (height - y - 1)*width + x;
+
+	int threadId = (blockIdx.x + blockIdx.y * gridDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
+	curandState randState; // state of the random number generator, to prevent repetition
+	curand_init(hashedframenumber + threadId, 0, 0, &randState);
+
 	// raytracing stuff
 	RGB c0(0);
 
 	for (int s = 0; s < spp; s++)
 			{
-				float yu = 1.0f - ((y + RND2(&x,&y)) / float(height - 1));
-				float xu = (x + RND2(&x,&y)) / float(width - 1);
+		float yu = 1.0f - ((y + curand_uniform(&randState)) / float(height - 1));
+		float xu = (x + curand_uniform(&randState)) / float(width - 1);
 				Ray ray = makeCameraRay(45.0f, cam_o, cam_d, cam_u, xu, yu);
 				RGB rd = radiance(ray, tetmesh, start, 0);
 				c0 = c0 + rd;
@@ -82,6 +83,7 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 
 int main(int argc, char *argv[])
 {
+	int frames = 0;
 	cudaDeviceProp  prop;
 	int dev;
 	memset(&prop, 0, sizeof(cudaDeviceProp));
@@ -197,7 +199,8 @@ int main(int argc, char *argv[])
 	} else fprintf(stderr, "Starting tetrahedra - camera: %lu \n", start);
 	
 
-	renderKernel<<<grid,block>>>(mesh, start, cam_o, cam_d, cam_u, cr);
+	renderKernel<<<grid,block>>>(mesh, start, cam_o, cam_d, cam_u, cr, WangHash(frames));
+	//renderKernel << <1,1 >> >(mesh, start, cam_o, cam_d, cam_u, cr);
 	gpuErrchk(cudaDeviceSynchronize());
 
 	clock_t t2 = clock();
