@@ -1,10 +1,39 @@
+#define GLEW_STATIC
 #include "tetgen_io.h"
-#include "cu_gl.h"
 #include "cuPrintf.cuh"
+#include "device_launch_parameters.h"
+#include "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\extras\CUPTI\include\GL\glew.h"
+#include "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\extras\CUPTI\include\GL\glut.h"
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
 #include <curand.h>
 #include <curand_kernel.h>
 
-const int width = 800, height=600, spp = 8;
+const int width = 320, height=240, spp = 4;
+float3*cr;
+float3* accumulatebuffer;
+int frames = 0;
+GLuint vbo;
+void *d_vbo_buffer = NULL;
+mesh2 *mesh;
+
+float4 cam_o = make_float4(-16, 5, -5, 0);
+float4 cam_d = make_float4(0, 0, 0, 0);
+float4 cam_u = make_float4(0, 0, 1, 0);
+
+union Color  // 4 bytes = 4 chars = 1 float
+{
+	float c;
+	uchar4 components;
+};
+
+void Timer(int obsolete) {
+
+	glutPostRedisplay();
+	glutTimerFunc(30, Timer, 0);
+}
+
+__device__ float timer = 0.0f;
 
 
 
@@ -16,8 +45,6 @@ unsigned int WangHash(unsigned int a) {
 	a = a ^ (a >> 15);
 	return a;
 }
-
-
 
 // CUDA error checking
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -38,9 +65,12 @@ __device__ float getDepth(Ray r, mesh2 *mesh, rayhit firsthit)
 	float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
 	float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
 	float c = abs(intersect_dist(r, a1, a2, a3));
-	float k = ((255 - 0) / (0 - 80)); // in zweiter klammer erster wert ist untere grenze distanzwerte
-	float d = 0 - (80 * k);
-	return (c*k) + d;
+	//float k = ((255 - 0) / (0 - 80)); // in zweiter klammer erster wert ist untere grenze distanzwerte
+	//float d = 0 - (80 * k);
+	//return (c*k) + d;
+	float new_value = ((c - 0.f) / (80.f - 0.f)) * (1.f - 0.f) + 0.f;
+
+	return new_value;
 }
 
 
@@ -55,7 +85,7 @@ __device__ RGB radiance(Ray r, mesh2 *mesh, int32_t start, int depth)
 }
 
 
-__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d, float4 cam_u, float4 *c, unsigned int hashedframenumber)
+__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d, float4 cam_u, float3 *c, unsigned int hashedframenumber)
 {
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -77,8 +107,93 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 				c0 = c0 + rd;
 			}
 	c0 = c0 / 4;
-	c[i] = make_float4( c0.x, c0.y, c0.z,0);
+
+	Color fcolour;
+	float3 colour = make_float3(clamp(c0.x, 0.0f, 1.0f), clamp(c0.y, 0.0f, 1.0f), clamp(c0.z, 0.0f, 1.0f));
+	// convert from 96-bit to 24-bit colour + perform gamma correction
+	fcolour.components = make_uchar4((unsigned char)(powf(colour.x, 1 / 2.2f) * 255), (unsigned char)(powf(colour.y, 1 / 2.2f) * 255), (unsigned char)(powf(colour.z, 1 / 2.2f) * 255), 1);
+	
+	//fcolour.components = make_uchar4((unsigned char)(powf(0.1f, 1 / 2.2f) * 255), (unsigned char)(powf(0.7f, 1 / 2.2f) * 255), (unsigned char)(powf(0.4f, 1 / 2.2f) * 255), 1);
+
+	
+	// store pixel coordinates and pixelcolour in OpenGL readable outputbuffer
+	c[i] = make_float3(x, y, fcolour.c);
+
+
+
+
+	//c[i] = make_float4( c0.x, c0.y, c0.z,0);
 }
+
+
+void disp(void)
+{
+	frames++;
+	cudaThreadSynchronize();
+	cudaGLMapBufferObject((void**)&cr, vbo);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	dim3 block(8, 8, 1);
+	dim3 grid(width / block.x, height / block.y, 1);
+	//20
+	renderKernel << <grid, block >> >(mesh, start, cam_o, cam_d, cam_u, cr, WangHash(frames));
+	//renderKernel << <1,1 >> >(mesh, start, cam_o, cam_d, cam_u, cr);
+	gpuErrchk(cudaDeviceSynchronize());
+
+	cudaGLUnmapBufferObject(vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glVertexPointer(2, GL_FLOAT, 12, 0);
+	glColorPointer(4, GL_UNSIGNED_BYTE, 12, (GLvoid*)8);
+
+	glEnableClientState(GL_VERTEX_ARRAY);
+	glEnableClientState(GL_COLOR_ARRAY);
+	glDrawArrays(GL_POINTS, 0, width * height);
+	glDisableClientState(GL_VERTEX_ARRAY);
+
+	glutSwapBuffers();
+	//glutPostRedisplay();
+}
+
+void render()
+{
+
+	cudaMalloc(&accumulatebuffer, width * height * sizeof(float3));
+	char *argv[] = { "null", NULL };
+	int   argc = 1;
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitWindowPosition(100, 100);
+	glutInitWindowSize(width, height);
+	glutCreateWindow("tetra_mesh");
+	glClearColor(0.0, 0.0, 0.0, 0.0);
+	glMatrixMode(GL_PROJECTION);
+	gluOrtho2D(0.0, width, 0.0, height);
+	fprintf(stderr, "OpenGL successfully initialized \n");
+	glutDisplayFunc(disp);
+	glewInit();
+	if (!glewIsSupported("GL_VERSION_2_0 ")) {
+		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
+		fflush(stderr);
+		exit(0);
+	}
+	fprintf(stderr, "GLEW successfully initialized  \n");
+	Timer(0);
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	unsigned int size = width * height * sizeof(float3);
+	glBufferData(GL_ARRAY_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	cudaGLRegisterBufferObject(vbo);
+	fprintf(stderr, "VBO created  \n");
+	fprintf(stderr, "Entering glutMainLoop...  \n");
+	glutMainLoop();
+}
+
+
+
+
+
+
 
 
 int main(int argc, char *argv[])
@@ -105,7 +220,7 @@ int main(int argc, char *argv[])
 	//     mesh2 testing
 	// ===========================
 
-	mesh2 *mesh;
+
 	gpuErrchk(cudaMallocManaged(&mesh, sizeof(mesh2)));
 
 	// ELEMENT INDICES
@@ -175,17 +290,14 @@ int main(int argc, char *argv[])
 	fprintf_s(stderr, "\nBounding box:MIN xyz - %f %f %f \n", box.min.x, box.min.y, box.min.z);
 	fprintf_s(stderr, "             MAX xyz - %f %f %f \n\n", box.max.x, box.max.y, box.max.z);
 
-	float4 cam_o = make_float4(-16, 5, -5, 0);
-	float4 cam_d = make_float4(0, 0, 0, 0);
-	float4 cam_u = make_float4(0, 0, 1, 0);
 
-	float4 *cr;
-	gpuErrchk(cudaMallocManaged(&cr, width * height * sizeof(float4)));
+
+
+	gpuErrchk(cudaMallocManaged(&cr, width * height * sizeof(float3)));
 
 
 	clock_t t1 = clock();
-	dim3 block(8, 8, 1);
-	dim3 grid(width / block.x, height / block.y, 1);
+
 
 	GetTetrahedraFromPoint << <mesh->tetnum, 1>> >(mesh, cam_o);
 	gpuErrchk(cudaDeviceSynchronize()); // kamera erfolgreich abgerufen..
@@ -198,10 +310,8 @@ int main(int argc, char *argv[])
 
 	} else fprintf(stderr, "Starting tetrahedra - camera: %lu \n", start);
 	
+	render();
 
-	renderKernel<<<grid,block>>>(mesh, start, cam_o, cam_d, cam_u, cr, WangHash(frames));
-	//renderKernel << <1,1 >> >(mesh, start, cam_o, cam_d, cam_u, cr);
-	gpuErrchk(cudaDeviceSynchronize());
 
 	clock_t t2 = clock();
 	double t = (double)(t2 - t1) / CLOCKS_PER_SEC;
@@ -212,9 +322,12 @@ int main(int argc, char *argv[])
 	for (int i = 0; i<width*height; i++)
 		fprintf(f, "%d %d %d ", (int)cr[i].x, (int)cr[i].y, (int)cr[i].z);
 
+
+
+	
+
 	cudaFree(mesh);
 	cudaFree(cr);
-
 
 	system("PAUSE");;
 }

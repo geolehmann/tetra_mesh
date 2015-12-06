@@ -185,10 +185,9 @@ void generate_frame(uchar4 *pixels, void*, int ticks)
 	kernel << <grids, threads >> >(pixels, ticks);
 }
 
-int render()
+void render(float4* image)
 {
 	GPUAnimBitmap  bitmap(DIM, DIM, NULL);
 
 	bitmap.anim_and_exit(generate_frame, NULL);
-	return 0;
 }

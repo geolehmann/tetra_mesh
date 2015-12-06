@@ -143,3 +143,9 @@ struct mesh2
 	//mesh
 	uint32_t tetnum, nodenum, facenum, edgenum;
 };
+
+
+inline __device__ __host__ float clamp(float f, float a, float b)
+{
+	return fmaxf(a, fminf(f, b));
+}
