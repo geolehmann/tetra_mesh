@@ -23,13 +23,7 @@
     <ClInclude Include="Math.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="cu_gl.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
     <ClInclude Include="tetgen_io.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
-    <ClInclude Include="cu_gl2.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

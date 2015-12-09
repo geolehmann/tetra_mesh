@@ -1,8 +1,10 @@
 #pragma once
 #include <string>
 #include <cuda_runtime.h>
-#include <stdint.h>
 #include <random>
+
+typedef int int32_t;
+typedef unsigned int uint32_t;
 
 #define PI 3.1415926536
 
@@ -97,7 +99,7 @@ struct RGB
 	__device__ RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 };
 
-__device__ float intersect_dist(Ray ray, float4 a, float4 b, float4 c) //tested and works!!
+__device__ float intersect_dist(Ray ray, float4 a, float4 b, float4 c)
 {
 float4 e1 = b - a;
 float4 e2 = c - a;
@@ -108,9 +110,10 @@ float4 r = Cross(s,e1);
 return Dot(e2,r) / a_;
 }
 
-// from rayito - github.com/Tecla/Rayito
+
 __device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, const float4& target, const float4& targetUpDirection, float xScreenPos0To1, float yScreenPos0To1)
 {
+	// from rayito raytracer - github.com/Tecla/Rayito
 	float4 forward = normalize(target - origin);
 	float4 right = normalize(Cross(forward, targetUpDirection));
 	float4 up = normalize(Cross(right, forward));

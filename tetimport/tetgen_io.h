@@ -10,6 +10,8 @@
 
 __managed__ int32_t start = 0;
 
+#define inf 1e20
+
 struct node
 {
 	uint32_t index;
@@ -286,8 +288,8 @@ __global__ void GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 BBox init_BBox(mesh2* mesh)
 {
 	BBox boundingbox;
-	boundingbox.min = make_float4(-1000000000, -1000000000, -1000000000, 0);
-	boundingbox.max = make_float4(1000000000, 1000000000, 1000000000, 0);
+	boundingbox.min = make_float4(-inf, -inf, -inf, 0);
+	boundingbox.max = make_float4(inf, inf, inf, 0);
 	for (uint32_t i = 0; i < mesh->nodenum; i++)
 	{
 		if (boundingbox.min.x < mesh->n_x[i])  boundingbox.min.x = mesh->n_x[i];
