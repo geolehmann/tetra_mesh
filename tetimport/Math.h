@@ -152,3 +152,43 @@ inline __device__ __host__ float clamp(float f, float a, float b)
 {
 	return fmaxf(a, fminf(f, b));
 }
+
+// non-CUDA
+
+float4 normalizeCPU(float4 a)
+{
+	float f = sqrt(a.x*a.x + a.y*a.y + a.z*a.z);
+	return make_float4(a.x / f, a.y / f, a.z / f, 0);
+}
+
+float4 CrossCPU(const float4 a, const float4 b)
+{
+	float4 cross = { a.y * b.z - a.z * b.y,
+		a.z * b.x - a.x * b.z,
+		a.x * b.y - a.y * b.x };
+	return cross;
+}
+
+float4 operator-=(float4 &a, const float4 b) 
+{
+	a.x -= b.x; a.y -= b.y; a.z -= b.z; a.w -= b.w;
+	return make_float4(0,0,0,0);
+}
+
+float4 operator+=(float4 &a, const float4 b) 
+{
+	a.x += b.x; a.y += b.y; a.z += b.z; a.w += b.w;
+	return make_float4(0, 0, 0, 0);
+}
+
+float4 operator%(const float4 &a, const float &b) {
+
+	return make_float4(a.x*b, a.y*b, a.z*b, 0);
+
+}
+
+
+float radian(float r)
+{
+	return r * (PI / 180);
+}

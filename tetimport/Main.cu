@@ -1,26 +1,36 @@
 #define GLEW_STATIC
-#include "GLFW/glfw3.h"
+#include <stdio.h>
 #include "tetgen_io.h"
 #include "cuPrintf.cuh"
 #include "device_launch_parameters.h"
 #include "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\extras\CUPTI\include\GL\glew.h"
-#include "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\extras\CUPTI\include\GL\glut.h"
-#include <cuda_runtime.h>
+#include "GLFW/glfw3.h"
 #include <cuda_gl_interop.h>
 #include <curand.h>
 #include <curand_kernel.h>
 
 const int width = 640, height=480, spp = 4;
 float3* cr;
-float3* accumulatebuffer;
 int frames = 0;
 __device__ float gamma = 2.2f;
+float mstep = 0.2f;
 GLuint vbo;
 mesh2 *mesh;
 
-float4 cam_o = make_float4(-16, 5, -5, 0);
+float4 cam_o = make_float4(7, -8, 4, 0);
 float4 cam_d = make_float4(0, 0, 0, 0);
 float4 cam_u = make_float4(0, 0, 1, 0);
+
+// Camera
+GLfloat yaw = -90.0f;	// Yaw is initialized to -90.0 degrees since a yaw of 0.0 results in a direction vector pointing to the right (due to how Eular angles work) so we initially rotate a bit to the left.
+GLfloat pitch = 0.0f;
+GLfloat lastX = width / 2.0;
+GLfloat lastY = height / 2.0;
+GLfloat deltaTime = 0.0f;	// Time between current frame and last frame
+GLfloat lastFrame = 0.0f;
+
+
+
 
 union Color  // 4 bytes = 4 chars = 1 float
 {
@@ -39,6 +49,81 @@ unsigned int WangHash(unsigned int a) {
 	a = a ^ (a >> 15);
 	return a;
 }
+
+static void error_callback(int error, const char* description)
+{
+	fputs(description, stderr);
+}
+
+
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	GLfloat cameraSpeed = 0.05f * deltaTime;
+
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+	{
+		glfwSetWindowShouldClose(window, GL_TRUE);
+	}
+		
+	if (key == GLFW_KEY_A && action == GLFW_PRESS)
+	{
+		cam_o -= normalizeCPU(CrossCPU(cam_d, cam_u)) % cameraSpeed;
+	}
+	if (key == GLFW_KEY_D && action == GLFW_PRESS)
+	{
+		cam_o += normalizeCPU(CrossCPU(cam_d, cam_u)) % cameraSpeed;
+	}
+	if (key == GLFW_KEY_W && action == GLFW_PRESS)
+	{
+		cam_o += cam_o % cameraSpeed;
+	}
+	if (key == GLFW_KEY_S && action == GLFW_PRESS)
+	{
+		cam_o -= cam_o % cameraSpeed;
+	}
+}
+
+
+bool firstMouse = true;
+void mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	float _pitch = 120.0f;
+	if (firstMouse)
+	{
+		lastX = xpos;
+		lastY = ypos;
+		firstMouse = false;
+	}
+
+	GLfloat xoffset = xpos - lastX;
+	GLfloat yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to left
+	lastX = xpos;
+	lastY = ypos;
+
+	GLfloat sensitivity = 1.0f;	// Change this value to your liking
+	xoffset *= sensitivity;
+	yoffset *= sensitivity;
+
+	yaw += xoffset;
+	pitch += yoffset;
+
+	// Make sure that when pitch is out of bounds, screen doesn't get flipped
+	if (pitch > _pitch)
+		pitch = _pitch;
+	if (pitch < -_pitch)
+		pitch = -_pitch;
+
+	float4 front;
+	float4 cam_r;
+	front.x = cos(radian(yaw)) * cos(radian(pitch));
+	front.y = sin(radian(pitch));
+	front.z = sin(radian(yaw)) * cos(radian(pitch));
+	cam_d = normalizeCPU(front);
+	cam_r = normalizeCPU(CrossCPU(cam_d, cam_u));
+	cam_u = normalizeCPU(CrossCPU(cam_r, cam_d));
+}
+
+
 
 // CUDA error checking
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -104,9 +189,9 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 }
 
 
-void disp(void)
+void disp(GLFWwindow* window)
 {
-	frames++;
+	//frames++;
 	cudaThreadSynchronize();
 	cudaGLMapBufferObject((void**)&cr, vbo);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -114,7 +199,7 @@ void disp(void)
 	dim3 block(8, 8, 1);
 	dim3 grid(width / block.x, height / block.y, 1);
 	renderKernel << <grid, block >> >(mesh, start, cam_o, cam_d, cam_u, cr, WangHash(frames));
-	gpuErrchk(cudaDeviceSynchronize());
+	gpuErrchk(cudaThreadSynchronize()); // cudaDeviceSynchronize??
 
 	cudaGLUnmapBufferObject(vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -125,76 +210,41 @@ void disp(void)
 	glEnableClientState(GL_COLOR_ARRAY);
 	glDrawArrays(GL_POINTS, 0, width * height);
 	glDisableClientState(GL_VERTEX_ARRAY);
-	glutSwapBuffers();
 }
 
-
-
-float mstep = 0.5f;
-void keyFunc(unsigned char key, int x, int y)
-{
-	switch (key) {
-	case 27: 
-		// Escape
-		printf("Done.\n");
-		exit(0);
-		break;
-	case 'a': 
-	{
-				cam_o.y = cam_o.y + mstep;
-				  break;
-	}
-	case 'd': 
-	{
-				cam_o.y = cam_o.y - mstep;
-				  break;
-	}
-	case 'w': 
-	{
-				cam_o.x = cam_o.x + mstep;
-				  break;
-	}
-	case 's': 
-	{
-				cam_o.x = cam_o.x - mstep;
-				  break;
-	}
-	}
-}
-
-void idleFunc(void) {
-	//UpdateRendering();
-
-	glutPostRedisplay();
-}
-
-	
 void render()
 {
 	char *argv[] = { "null", NULL };
 	int   argc = 1;
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(100, 100);
-	glutInitWindowSize(width, height);
-	glutCreateWindow("tetra_mesh");
+	GLFWwindow* window;
+	if (!glfwInit())
+		exit(EXIT_FAILURE);
+	/*glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);*/
+	window = glfwCreateWindow(640, 480, "tetra_mesh", NULL, NULL);
+	if (!window)	
+	{ 
+		glfwTerminate(); 
+	}
+	glfwMakeContextCurrent(window);
 
-	fprintf(stderr, "OpenGL successfully initialized \n");
-	glutKeyboardFunc(keyFunc);
-	glutIdleFunc(idleFunc);
-	glutDisplayFunc(disp);
+	glClearColor(0.0, 0.0, 0.0, 0.0);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0.0, width, 0.0, height, 0, 99999999999);
+
 	glewInit();
-	if (!glewIsSupported("GL_VERSION_2_0 ")) {
+	if (!glewIsSupported("GL_VERSION_2_0 ")) 
+	{
 		fprintf(stderr, "ERROR: Support for necessary OpenGL extensions missing.");
 		fflush(stderr);
 		exit(0);
 	}
 	fprintf(stderr, "GLEW successfully initialized  \n");
 
-	glClearColor(0.0, 0.0, 0.0, 0.0);
-	glMatrixMode(GL_PROJECTION);
-	gluOrtho2D(0.0, width, 0.0, height);
-	glutPostRedisplay();
+
 
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -204,7 +254,26 @@ void render()
 	cudaGLRegisterBufferObject(vbo);
 	fprintf(stderr, "VBO created  \n");
 	fprintf(stderr, "Entering glutMainLoop...  \n");
-	glutMainLoop();
+
+	glfwSetErrorCallback(error_callback);
+	glfwSetKeyCallback(window, key_callback);
+	glfwSetCursorPosCallback(window, mouse_callback);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glewExperimental = GL_TRUE;
+
+
+
+	while (!glfwWindowShouldClose(window))
+	{
+		// Calculate deltatime of current frame
+		GLfloat currentFrame = glfwGetTime();
+		deltaTime = currentFrame - lastFrame;
+		lastFrame = currentFrame;
+		glfwPollEvents();
+		disp(window);
+		glfwSwapBuffers(window);
+	}
+	glfwDestroyWindow(window);
 }
 
 int main(int argc, char *argv[])
@@ -217,11 +286,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("test1.1.ele");
-	tetmesh.load_tet_neigh("test1.1.neigh");
-	tetmesh.load_tet_node("test1.1.node");
-	tetmesh.load_tet_face("test1.1.face");
-	tetmesh.load_tet_t2f("test1.1.t2f");
+	tetmesh.load_tet_ele("test2.1.ele");
+	tetmesh.load_tet_neigh("test2.1.neigh");
+	tetmesh.load_tet_node("test2.1.node");
+	tetmesh.load_tet_face("test2.1.face");
+	tetmesh.load_tet_t2f("test2.1.t2f");
 
 
 	// ===========================
@@ -312,17 +381,11 @@ int main(int argc, char *argv[])
 	
 	// main render loop
 
-	clock_t t1 = clock();
 	render();
-	clock_t t2 = clock();
-
-	double t = (double)(t2 - t1) / CLOCKS_PER_SEC;
-	printf("\nRender time: %fs.\n", t);
 
 	cudaFree(mesh);
 	cudaFree(cr);
-
-	system("PAUSE");
+	glfwTerminate();
 }
 
 
