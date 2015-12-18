@@ -1,8 +1,24 @@
+/*
+*  tetrahedra-based raytracer
+*  Copyright (C) 2015  Christian Lehmann
+*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License as published by
+*  the Free Software Foundation; either version 2 of the License, or
+*  (at your option) any later version.
+*
+*  This program is distributed in the hope that it will be useful,
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*  GNU General Public License for more details.
+*/
+
 #pragma once
 #include <string>
 #include <cuda_runtime.h>
 #include <random>
 
+#define pi180 PI/180
 typedef int int32_t;
 typedef unsigned int uint32_t;
 
@@ -117,7 +133,7 @@ __device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, c
 	float4 forward = normalize(target - origin);
 	float4 right = normalize(Cross(forward, targetUpDirection));
 	float4 up = normalize(Cross(right, forward));
-	float tanFov = std::tan(fieldOfViewInDegrees * PI / 180.0f);
+	float tanFov = std::tan(fieldOfViewInDegrees * pi180);
 	Ray ray;
 	ray.o = origin;
 	ray.d = forward + right * ((xScreenPos0To1 - 0.5f) * tanFov) + up * ((yScreenPos0To1 - 0.5f) * tanFov);
@@ -187,8 +203,19 @@ float4 operator%(const float4 &a, const float &b) {
 
 }
 
+float4 plus(const float4 &a, const float4 &b) {
+
+	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, 0);
+
+}
+
+float4 minus(const float4 &a, const float4 &b) {
+
+	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
+
+}
 
 float radian(float r)
 {
-	return r * (PI / 180);
+	return r * (pi180);
 }

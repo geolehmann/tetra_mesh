@@ -1,3 +1,18 @@
+/*
+*  tetrahedra-based raytracer
+*  Copyright (C) 2015  Christian Lehmann
+*
+*  This program is free software; you can redistribute it and/or modify
+*  it under the terms of the GNU General Public License as published by
+*  the Free Software Foundation; either version 2 of the License, or
+*  (at your option) any later version.
+*
+*  This program is distributed in the hope that it will be useful,
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*  GNU General Public License for more details.
+*/
+
 #pragma once
 #include <iostream>
 #include <fstream>
@@ -8,7 +23,7 @@
 
 #include "Math.h"
 
-__managed__ int32_t start = 0;
+__managed__ int32_t _start_tet = 0;
 
 #define inf 1e20
 
@@ -281,7 +296,7 @@ __global__ void GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 		float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
 		float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
 		float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
-		if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) start=i;
+		if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet=i;
 
 }
 
@@ -312,14 +327,15 @@ public:
 	bool constrained = false;
 };
 
-__device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
+__device__ void GetExitTet(float4 ray_o, float4 ray, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
 	face = 0;
 	tet = 0;
+
 	// http://realtimecollisiondetection.net/blog/?p=13
 
 	// translate Ray to origin and vertices same as ray
-	ray_d = ray_o + (ray_d * 1000);
+	float4 ray_d = ray_o + (ray * 1000);
 
 	float4 q = ray_d - ray_o;
 
@@ -359,11 +375,9 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 	if (face == 0 && tet == 0) { printf("Error! No exit tet found. \n"); }
 }
 
-
 __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int depth)
 {
 	int32_t nexttet, nextface, lastface = 0;
-
 	while (1)
 	{
 		int32_t findex[4] = { mesh->t_findex1[start], mesh->t_findex2[start], mesh->t_findex3[start], mesh->t_findex4[start] };
@@ -376,18 +390,18 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 
 
 		GetExitTet(ray.o, ray.d, nodes, findex, adjtets, lastface, nextface, nexttet);
+
 		if (nexttet == 0 || nextface == 0)
 		{
 			d.wall = true;
 			d.face = lastface;
-			//cuPrintf("Stopped at null face. \n");
 			break;
 		}
 		depth++;
 
 		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
 		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
-		if (nexttet == -1) { d.wall = true; d.face = nextface; d.tet = start; break; } // when adjacent tetrahedra is -1, ray stops
+		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = start; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
 		start = nexttet;
 	}
