@@ -290,13 +290,13 @@ __device__ bool IsPointInTetrahedron(float4 v1, float4 v2, float4 v3, float4 v4,
 
 __global__ void GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 {
-		int i = blockIdx.x;
+		int i = (blockIdx.x + blockIdx.y * gridDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
 
 		float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
 		float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
 		float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
 		float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
-		if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet=i;
+		if (i<mesh->tetnum) if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet=i;
 
 }
 
@@ -317,9 +317,8 @@ BBox init_BBox(mesh2* mesh)
 	return boundingbox;
 }
 
-class rayhit
+struct rayhit
 {
-public:
 	int32_t tet;
 	int32_t face;
 	float4 pos;
@@ -372,38 +371,47 @@ __device__ void GetExitTet(float4 ray_o, float4 ray, float4* nodes, int32_t find
 	// DCB
 	if (lface != findex[0]) { if (signf(u_0) == signf(v_0) && signf(v_0) == signf(w_0)) { face = findex[0]; tet = adjtet[0]; } }
 	// No face hit
-	if (face == 0 && tet == 0) { printf("Error! No exit tet found. \n"); }
+	if (face == 0 && tet == 0) { //printf("Error! No exit tet found. \n"); 
+	}
 }
 
 __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int depth)
 {
+	int32_t idx = start;
 	int32_t nexttet, nextface, lastface = 0;
 	while (1)
 	{
-		int32_t findex[4] = { mesh->t_findex1[start], mesh->t_findex2[start], mesh->t_findex3[start], mesh->t_findex4[start] };
-		int32_t adjtets[4] = { mesh->t_adjtet1[start], mesh->t_adjtet2[start], mesh->t_adjtet3[start], mesh->t_adjtet4[start] };
+		int32_t findex[4] = { mesh->t_findex1[idx], mesh->t_findex2[idx], mesh->t_findex3[idx], mesh->t_findex4[idx] };
+		int32_t adjtets[4] = { mesh->t_adjtet1[idx], mesh->t_adjtet2[idx], mesh->t_adjtet3[idx], mesh->t_adjtet4[idx] };
 		float4 nodes[4] = {
-			make_float4(mesh->n_x[mesh->t_nindex1[start]], mesh->n_y[mesh->t_nindex1[start]], mesh->n_z[mesh->t_nindex1[start]], 0),
-			make_float4(mesh->n_x[mesh->t_nindex2[start]], mesh->n_y[mesh->t_nindex2[start]], mesh->n_z[mesh->t_nindex2[start]], 0),
-			make_float4(mesh->n_x[mesh->t_nindex3[start]], mesh->n_y[mesh->t_nindex3[start]], mesh->n_z[mesh->t_nindex3[start]], 0),
-			make_float4(mesh->n_x[mesh->t_nindex4[start]], mesh->n_y[mesh->t_nindex4[start]], mesh->n_z[mesh->t_nindex4[start]], 0) };
+			make_float4(mesh->n_x[mesh->t_nindex1[idx]], mesh->n_y[mesh->t_nindex1[idx]], mesh->n_z[mesh->t_nindex1[idx]], 0),
+			make_float4(mesh->n_x[mesh->t_nindex2[idx]], mesh->n_y[mesh->t_nindex2[idx]], mesh->n_z[mesh->t_nindex2[idx]], 0),
+			make_float4(mesh->n_x[mesh->t_nindex3[idx]], mesh->n_y[mesh->t_nindex3[idx]], mesh->n_z[mesh->t_nindex3[idx]], 0),
+			make_float4(mesh->n_x[mesh->t_nindex4[idx]], mesh->n_y[mesh->t_nindex4[idx]], mesh->n_z[mesh->t_nindex4[idx]], 0) };
 
 
 		GetExitTet(ray.o, ray.d, nodes, findex, adjtets, lastface, nextface, nexttet);
 
-		if (nexttet == 0 || nextface == 0)
+		/*if (nexttet == 0 || nextface == 0)
 		{
 			d.wall = true;
 			d.face = lastface;
 			break;
-		}
+		}*/
 		depth++;
 
 		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
 		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
-		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = start; break; } // when adjacent tetrahedra is -1, ray stops
+		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = idx; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
-		start = nexttet;
+		idx = nexttet;
+		if (depth > 50) 
+		{
+			//avoid infinite loops
+			d.wall = true;
+			d.face = lastface;
+			break;
+		}
 	}
 }
 

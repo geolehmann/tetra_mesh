@@ -24,24 +24,23 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-const int width = 200, height=150, spp = 1;
+const int width = 640, height=480, spp = 4;
 float3* cr;
 int frames = 0;
 __device__ float gamma = 2.2f;
-__device__ float timer = 0.0f;
+__device__ float fov = 45.0f;
 BBox box;
 GLuint vbo;
 mesh2 *mesh;
-bool    keys[1024];
-GLfloat sensitivity = 1.0f;
-bool firstMouse = true;
-
-float4 cam_o = make_float4(7, -8, 4, 0);
-float4 cam_d = make_float4(1, 1, 1, 0);
-float4 cam_u = make_float4(0, 0, 1, 0);
 
 // Camera
-GLfloat Yaw = 0.0f;	// horizontal inclination
+bool    keys[1024];
+GLfloat sensitivity = 0.1f;
+bool firstMouse = true;
+float4 cam_o = make_float4(7, -8, -4, 0);
+float4 cam_d = make_float4(0, 0, 0, 0);
+float4 cam_u = make_float4(0, 0, 1, 0);
+GLfloat Yaw = 90.0f;	// horizontal inclination
 GLfloat Pitch = 0.0f; // vertikal inclination
 GLfloat lastX = width / 2.0; //screen center
 GLfloat lastY = height / 2.0;
@@ -86,20 +85,26 @@ static void error_callback(int error, const char* description)
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	// first value sets velocity
-	GLfloat cameraSpeed = 0.5f * deltaTime;
+	GLfloat cameraSpeed = 3.5f * deltaTime;
 	if (key >= 0 && key < 1024)
 	{
 		if (action == GLFW_PRESS)
 		{
 			keys[key] = true;
 			//look for new tetrahedra...
-			GetTetrahedraFromPoint << <mesh->tetnum, 1 >> >(mesh, cam_o);
+			uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
+			dim3 Block(_dim, _dim, 1);
+			dim3 Grid(_dim, _dim, 1);
+			GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
 			gpuErrchk(cudaDeviceSynchronize());
 		}
 		else if (action == GLFW_RELEASE)
 		{
 			keys[key] = false;
-			GetTetrahedraFromPoint << <mesh->tetnum, 1 >> >(mesh, cam_o);
+			uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
+			dim3 Block(_dim, _dim, 1);
+			dim3 Grid(_dim, _dim, 1);
+			GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
 			gpuErrchk(cudaDeviceSynchronize());
 		}
 
@@ -129,7 +134,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {	
-	//should be okay now
 	if (firstMouse)
 	{
 		lastX = xpos;
@@ -161,18 +165,17 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 	cam_d = normalizeCPU(front);
 	//cam_r = normalizeCPU(CrossCPU(cam_d, cam_u));
 	//cam_u = normalizeCPU(CrossCPU(cam_r, cam_d));
-
 }
 
 
 
-__device__ float getDepth(Ray *r, mesh2 *mesh, rayhit firsthit)
+__device__ float getDepth(Ray r, mesh2 *mesh, rayhit firsthit)
 {
 	float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
 	float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
 	float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
-	float c = abs(intersect_dist(*r, a1, a2, a3));
-	float new_value = ((c - 0.f) / (70.f - 0.f)) * (1.f - 0.f) + 0.f;
+	float c = abs(intersect_dist(r, a1, a2, a3));
+	float new_value = ((c - 0.f) / (60.f - 0.f)) * (1.f - 0.f) + 0.f;
 	return new_value;
 }
 
@@ -181,7 +184,7 @@ __device__ RGB radiance(Ray r, mesh2 *mesh, int32_t start, int depth)
 {
 	rayhit firsthit;
 	traverse_ray(mesh, r, start, firsthit, depth);
-	float d2 = getDepth(&r, mesh, firsthit); // gets depth value
+	float d2 = getDepth(r, mesh, firsthit); // gets depth value
 	RGB rd;
 	rd.x = 0; rd.y = 0; rd.z = d2;
 	return rd; 
@@ -203,8 +206,8 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 	{
 		float yu = 1.0f - ((y + curand_uniform(&randState)) / float(height - 1));
 		float xu = (x + curand_uniform(&randState)) / float(width - 1);
-		Ray ray = makeCameraRay(45.0f, cam_o, cam_d, cam_u, xu, yu);
-		RGB rd = radiance(ray, tetmesh, start, 0);
+		Ray _ray = makeCameraRay(fov, cam_o, cam_d, cam_u, xu, yu);
+		RGB rd = radiance(_ray, tetmesh, start, 0);
 		c0 = c0 + rd;
 	}
 	c0 = c0 / 4;
@@ -374,8 +377,14 @@ int main(int argc, char *argv[])
 
 	// Get camera starting tetrahedra
 	gpuErrchk(cudaMallocManaged(&cr, width * height * sizeof(float3)));
-	GetTetrahedraFromPoint << <mesh->tetnum, 1>> >(mesh, cam_o);
+
+	// grid dimensions for finding starting tetrahedra
+	uint32_t _dim = 2+pow(mesh->tetnum, 0.25);
+	dim3 Block(_dim, _dim, 1);
+	dim3 Grid(_dim, _dim, 1);
+	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
 	gpuErrchk(cudaDeviceSynchronize()); 
+
 	if (_start_tet == 0) 
 	{
 		fprintf(stderr, "Starting point outside tetrahedra! Aborting ... \n");
@@ -387,34 +396,6 @@ int main(int argc, char *argv[])
 	// main render function
 
 	render();
-
-
-	// cleanup
-	cudaFree(mesh->n_index);
-	cudaFree(mesh->n_x);
-	cudaFree(mesh->n_y);
-	cudaFree(mesh->n_z);
-	cudaFree(mesh->f_index);
-	cudaFree(mesh->f_node_a);
-	cudaFree(mesh->f_node_b);
-	cudaFree(mesh->f_node_c);
-	cudaFree(mesh->face_is_constrained);
-	cudaFree(mesh->face_is_wall);
-	cudaFree(mesh->t_index);
-	cudaFree(mesh->t_findex1);
-	cudaFree(mesh->t_findex2);
-	cudaFree(mesh->t_findex3);
-	cudaFree(mesh->t_findex4);
-	cudaFree(mesh->t_nindex1);
-	cudaFree(mesh->t_nindex2);
-	cudaFree(mesh->t_nindex3);
-	cudaFree(mesh->t_nindex4);
-	cudaFree(mesh->t_adjtet1);
-	cudaFree(mesh->t_adjtet2);
-	cudaFree(mesh->t_adjtet3);
-	cudaFree(mesh->t_adjtet4);
-	cudaFree(mesh);
-	cudaFree(cr);
 
 	gpuErrchk(cudaDeviceReset());
 	glfwTerminate();
