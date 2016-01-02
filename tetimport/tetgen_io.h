@@ -199,10 +199,10 @@ void tetrahedra_mesh::load_tet_face(std::string filename)
 				faces.at(ints.at(0)).node_b = ints.at(2);
 				faces.at(ints.at(0)).node_c = ints.at(3);
 
-				if (ints.at(4) == -1) faces.at(ints.at(0)).face_is_constrained = true;
+				
 
 				if (ints.at(5) == -1 || ints.at(6) == -1) { faces.at(ints.at(0)).face_is_wall = true; }
-
+				else if (ints.at(4) == -1) faces.at(ints.at(0)).face_is_constrained = true;
 			}
 			num++;
 		}
@@ -317,16 +317,7 @@ BBox init_BBox(mesh2* mesh)
 	return boundingbox;
 }
 
-struct rayhit
-{
-	int32_t tet;
-	int32_t face;
-	float4 pos;
-	bool wall = false;
-	bool constrained = false;
-};
-
-__device__ void GetExitTet(float4 ray_o, float4 ray, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
+__device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
 	face = 0;
 	tet = 0;
@@ -334,7 +325,7 @@ __device__ void GetExitTet(float4 ray_o, float4 ray, float4* nodes, int32_t find
 	// http://realtimecollisiondetection.net/blog/?p=13
 
 	// translate Ray to origin and vertices same as ray
-	float4 ray_d = ray_o + (ray * 1000);
+	ray_d = ray_o + (ray_d * 1000);
 
 	float4 q = ray_d - ray_o;
 
@@ -371,8 +362,7 @@ __device__ void GetExitTet(float4 ray_o, float4 ray, float4* nodes, int32_t find
 	// DCB
 	if (lface != findex[0]) { if (signf(u_0) == signf(v_0) && signf(v_0) == signf(w_0)) { face = findex[0]; tet = adjtet[0]; } }
 	// No face hit
-	if (face == 0 && tet == 0) { //printf("Error! No exit tet found. \n"); 
-	}
+	// if (face == 0 && tet == 0) { printf("Error! No exit tet found. \n"); }
 }
 
 __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int depth)
@@ -405,7 +395,7 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = idx; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
 		idx = nexttet;
-		if (depth > 50) 
+		if (depth > 80) 
 		{
 			//avoid infinite loops
 			d.wall = true;

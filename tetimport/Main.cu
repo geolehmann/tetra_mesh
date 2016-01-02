@@ -28,16 +28,18 @@ const int width = 640, height=480, spp = 4;
 float3* cr;
 int frames = 0;
 __device__ float gamma = 2.2f;
-__device__ float fov = 45.0f;
+__device__ float fov = 40.0f;
 BBox box;
 GLuint vbo;
 mesh2 *mesh;
 
+#define MAX_DEPTH 3
+
 // Camera
-bool    keys[1024];
-GLfloat sensitivity = 0.1f;
+bool keys[1024];
+GLfloat sensitivity = 0.15f;
 bool firstMouse = true;
-float4 cam_o = make_float4(7, -8, -4, 0);
+float4 cam_o = make_float4(-14, 11, 11, 0);
 float4 cam_d = make_float4(0, 0, 0, 0);
 float4 cam_u = make_float4(0, 0, 1, 0);
 GLfloat Yaw = 90.0f;	// horizontal inclination
@@ -82,30 +84,29 @@ static void error_callback(int error, const char* description)
 }
 
 
+void updateCamPos()
+{
+	//look for new tetrahedra...
+	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
+	dim3 Block(_dim, _dim, 1);
+	dim3 Grid(_dim, _dim, 1);
+	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
+	gpuErrchk(cudaDeviceSynchronize());
+}
+
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	// first value sets velocity
-	GLfloat cameraSpeed = 3.5f * deltaTime;
+	GLfloat cameraSpeed = 0.5f * deltaTime;
 	if (key >= 0 && key < 1024)
 	{
 		if (action == GLFW_PRESS)
 		{
 			keys[key] = true;
-			//look for new tetrahedra...
-			uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
-			dim3 Block(_dim, _dim, 1);
-			dim3 Grid(_dim, _dim, 1);
-			GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
-			gpuErrchk(cudaDeviceSynchronize());
 		}
 		else if (action == GLFW_RELEASE)
 		{
 			keys[key] = false;
-			uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
-			dim3 Block(_dim, _dim, 1);
-			dim3 Grid(_dim, _dim, 1);
-			GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
-			gpuErrchk(cudaDeviceSynchronize());
 		}
 
 	}
@@ -116,19 +117,23 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		
 	if (keys[GLFW_KEY_A])
 	{
-		cam_o -= normalizeCPU(CrossCPU(cam_d, cam_u)) % cameraSpeed;
+		updateCamPos;
+		cam_o -= normalizeCPU(CrossCPU(minus(cam_d, cam_o), cam_u)) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_D])
 	{
-		cam_o += normalizeCPU(CrossCPU(cam_d, cam_u)) % cameraSpeed;
+		updateCamPos;
+		cam_o += normalizeCPU(CrossCPU(minus(cam_d, cam_o), cam_u)) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_W])
 	{
-		cam_o += cam_d % cameraSpeed;
+		updateCamPos;
+		cam_o += minus(cam_d, cam_o) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_S])
 	{
-		cam_o -= cam_d % cameraSpeed;
+		updateCamPos;
+		cam_o -= minus(cam_d, cam_o) * cameraSpeed;
 	}
 }
 
@@ -148,8 +153,8 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 	xoffset *= sensitivity;
 	yoffset *= sensitivity;
 
-	Yaw += xoffset;
-	Pitch += yoffset;
+	Yaw += yoffset; //geändert - vorher y/x vertauscht
+	Pitch += xoffset;
 
 	// Make sure that when pitch is out of bounds, screen doesn't get flipped
 	if (Pitch > 89.0f)
@@ -158,36 +163,103 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 		Pitch = -89.0f;
 
 	float4 front;
-	float4 cam_r;
 	front.x = cos(radian(Yaw)) * cos(radian(Pitch));
 	front.y = sin(radian(Pitch));
 	front.z = sin(radian(Yaw)) * cos(radian(Pitch));
 	cam_d = normalizeCPU(front);
-	//cam_r = normalizeCPU(CrossCPU(cam_d, cam_u));
-	//cam_u = normalizeCPU(CrossCPU(cam_r, cam_d));
 }
 
 
 
-__device__ float getDepth(Ray r, mesh2 *mesh, rayhit firsthit)
+__device__ float getDepth(Ray r, mesh2 *mesh, int32_t face)
 {
-	float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
-	float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
-	float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
+	float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[face]], mesh->n_y[mesh->f_node_a[face]], mesh->n_z[mesh->f_node_a[face]], 0);
+	float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[face]], mesh->n_y[mesh->f_node_b[face]], mesh->n_z[mesh->f_node_b[face]], 0);
+	float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[face]], mesh->n_y[mesh->f_node_c[face]], mesh->n_z[mesh->f_node_c[face]], 0);
 	float c = abs(intersect_dist(r, a1, a2, a3));
-	float new_value = ((c - 0.f) / (60.f - 0.f)) * (1.f - 0.f) + 0.f;
+	float new_value = ((c - 0.0f) / (100.0f - 0.0f)) * (1.0f - 0.0f) + 0.0f;
 	return new_value;
 }
 
+__device__ float4 getTriangleNormal(const float4 &p1, const float4 &p2, const float4 &p3)
+{
+	float4 V1 = (p2 - p1);
+	float4 V2 = (p3 - p1);
+	float4 surfaceNormal;
+	surfaceNormal.x = (V1.y*V2.z) - (V1.z - V2.y);
+	surfaceNormal.y = -((V2.z * V1.x) - (V2.x * V1.z));
+	surfaceNormal.z = (V1.x*V2.y) - (V1.y*V2.x);
+	surfaceNormal = normalize(surfaceNormal);
+	return surfaceNormal;
+}
 
-__device__ RGB radiance(Ray r, mesh2 *mesh, int32_t start, int depth)
+__device__ RGB visualizeDepth(Ray r, mesh2 *mesh, int32_t start, int depth)
 {
 	rayhit firsthit;
 	traverse_ray(mesh, r, start, firsthit, depth);
-	float d2 = getDepth(r, mesh, firsthit); // gets depth value
+	float d2 = getDepth(r, mesh, firsthit.face); // gets depth value
+
 	RGB rd;
-	rd.x = 0; rd.y = 0; rd.z = d2;
+	if (firsthit.wall == true) { rd.x = 0.5; rd.y = 0.8; rd.z = 0.1; }
+	if (firsthit.constrained == true) { rd.x = 0.1; rd.y = 0.1; rd.z = d2; }
 	return rd; 
+}
+
+
+__device__ RGB radiance(mesh2 *mesh, int32_t &start, float4 ray_o, float4 ray_d)
+{
+	Ray r;
+	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 0.0f);	// colour mask
+	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
+	float4 f;  // primitive colour
+	float4 emit; // primitive emission colour
+	float4 x; // intersection point
+	float4 n; // normal
+	float4 nl; // oriented normal
+	float4 d; // ray direction of next path segment
+	r.d = ray_d;
+	r.o = ray_o;
+
+	for (int depth = 1; depth <= MAX_DEPTH; depth++)
+	{
+
+		rayhit firsthit;
+		traverse_ray(mesh, r, start, firsthit, depth);
+		// set new starting tetrahedra and ray origin
+		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
+		float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
+		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
+		float t = abs(intersect_dist(r, a1, a2, a3));
+
+		x = r.o + r.d*t;  // intersection point
+		n = normalize(getTriangleNormal(a1, a2, a3));  // normal 
+		nl = Dot(n, r.d) < 0 ? n : n * -1;  // correctly oriented normal
+		f = make_float4(0.9f, 0.4f, 0.1f, 0.0f);  // triangle colour
+		emit = make_float4(0.6f, 0.6f, 0.6f, 0.0f);
+		accucolor += (mask * emit);
+
+
+		firsthit.refl = SPEC;
+
+
+		if (firsthit.refl == SPEC)
+		{
+			// compute relfected ray direction according to Snell's law
+			d = r.d - 2.0f * n * Dot(n, r.d);
+			// offset origin next path segment to prevent self intersection
+			x += nl * 0.01f;
+			// multiply mask with colour of object
+			mask *= f;
+		}
+		r.o = x;
+		r.d = d;
+		start = firsthit.tet; // new tet origin
+	}
+	RGB rgb;
+	rgb.x = accucolor.x;
+	rgb.y = accucolor.y;
+	rgb.z = accucolor.z;
+	return rgb;
 }
 
 
@@ -206,8 +278,9 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 	{
 		float yu = 1.0f - ((y + curand_uniform(&randState)) / float(height - 1));
 		float xu = (x + curand_uniform(&randState)) / float(width - 1);
-		Ray _ray = makeCameraRay(fov, cam_o, cam_d, cam_u, xu, yu);
-		RGB rd = radiance(_ray, tetmesh, start, 0);
+		Ray ray = makeCameraRay(fov, cam_o, cam_d, cam_u, xu, yu);
+		RGB rd = visualizeDepth(ray, tetmesh, start, 0);
+		// RGB rd = radiance(tetmesh, start, ray.o, ray.d);
 		c0 = c0 + rd;
 	}
 	c0 = c0 / 4;
@@ -224,7 +297,7 @@ void render()
 {
 	GLFWwindow* window;
 	if (!glfwInit()) exit(EXIT_FAILURE);
-	window = glfwCreateWindow(width, height, "tetra_mesh", NULL, NULL);
+	window = glfwCreateWindow(width, height, "", NULL, NULL);
 	glfwMakeContextCurrent(window);
 	glfwSetErrorCallback(error_callback);
 	glfwSetKeyCallback(window, key_callback);
@@ -261,11 +334,13 @@ void render()
 		GLfloat currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
-		glfwPollEvents();
+		std::stringstream title;
+		title << "tetra_mesh (2015)   -   deltaTime: " << deltaTime*1000 << " ms. (16-36 optimal)";
+		glfwSetWindowTitle(window, title.str().c_str());
 
-		//frames++;
-		cudaGLMapBufferObject((void**)&cr, vbo);
 		glClear(GL_COLOR_BUFFER_BIT);
+		glfwPollEvents();
+		cudaGLMapBufferObject((void**)&cr, vbo);
 
 		dim3 block(8, 8, 1);
 		dim3 grid(width / block.x, height / block.y, 1);
@@ -295,11 +370,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("test2.1.ele");
-	tetmesh.load_tet_neigh("test2.1.neigh");
-	tetmesh.load_tet_node("test2.1.node");
-	tetmesh.load_tet_face("test2.1.face");
-	tetmesh.load_tet_t2f("test2.1.t2f");
+	tetmesh.load_tet_ele("test1.1.ele");
+	tetmesh.load_tet_neigh("test1.1.neigh");
+	tetmesh.load_tet_node("test1.1.node");
+	tetmesh.load_tet_face("test1.1.face");
+	tetmesh.load_tet_t2f("test1.1.t2f");
 
 
 	// ===========================

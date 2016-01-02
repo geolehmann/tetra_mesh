@@ -18,46 +18,68 @@
 #include <cuda_runtime.h>
 #include <random>
 
+#define PI 3.1415926536
 #define pi180 PI/180
+
 typedef int int32_t;
 typedef unsigned int uint32_t;
 
-#define PI 3.1415926536
 
-__device__ float4 operator-(const float4 &a, const float4 &b) {
 
+__device__ float4 operator-(const float4 &a, const float4 &b) 
+{
 	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
-
 }
 
-__device__ float4 operator+(const float4 &a, const float4 &b) {
-
+__device__ float4 operator+(const float4 &a, const float4 &b) 
+{
 	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, 0);
-
 }
 
-__device__ float4 operator*(const float4 &a, const float &b) {
+__device__ float4 operator*(float4 a, float4 b)
+{
+	return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
+}
 
+__device__ __host__ float4 operator*(const float4 &a, const float &b)
+{
 	return make_float4(a.x*b, a.y*b, a.z*b, 0);
-
 }
 
-__device__ float4 operator/(const float4 &a, const float &b) {
+__device__ float4 operator*(float s, float4 a)
+{
+	return make_float4(a.x * s, a.y * s, a.z * s, a.w * s);
+}
 
+__device__ void operator*=(float4 &a, float4 b)
+{
+	a.x *= b.x; a.y *= b.y; a.z *= b.z; a.w *= b.w;
+}
+
+__device__ void operator*=(float4 &a, float s)
+{
+	a.x *= s; a.y *= s; a.z *= s; a.w *= s;
+}
+
+__device__ float4 operator/(const float4 &a, const float &b) 
+{
 	return make_float4(a.x/b, a.y/b, a.z/b, 0);
-
 }
 
 __device__ float4 normalize(float4 a)
 { 
-	float f = sqrt(a.x*a.x + a.y*a.y + a.z*a.z); 
-	return make_float4(a.x/f, a.y/f, a.z/f, 0);
+	float f = 1/sqrt(a.x*a.x + a.y*a.y + a.z*a.z); 
+	return make_float4(a.x*f, a.y*f, a.z*f, 0);
 }
 
-
-__device__  float Dot(const float4 a, const float4 b)
+ __device__  float Dot(const float4 a, const float4 b)
 {
 	return  a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+__device__ float4 reflect(float4 i, float4 n)
+{
+	return i - 2.0f * n * Dot(n, i);
 }
 
 __device__  float4 Cross(const float4 a, const float4 b)
@@ -133,7 +155,7 @@ __device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, c
 	float4 forward = target; // normalize(target - origin);
 	float4 right = normalize(Cross(forward, targetUpDirection));
 	float4 up = normalize(Cross(right, forward));
-	float tanFov = std::tan(fieldOfViewInDegrees * pi180);
+	float tanFov = tan(fieldOfViewInDegrees * pi180);
 	Ray ray;
 	ray.o = origin;
 	ray.d = forward + right * ((xScreenPos0To1 - 0.5f) * tanFov) + up * ((yScreenPos0To1 - 0.5f) * tanFov);
@@ -191,16 +213,10 @@ float4 operator-=(float4 &a, const float4 b)
 	return make_float4(0,0,0,0);
 }
 
-float4 operator+=(float4 &a, const float4 b) 
+__device__ __host__ float4 operator+=(float4 &a, const float4 b) 
 {
 	a.x += b.x; a.y += b.y; a.z += b.z; a.w += b.w;
 	return make_float4(0, 0, 0, 0);
-}
-
-float4 operator%(const float4 &a, const float &b) {
-
-	return make_float4(a.x*b, a.y*b, a.z*b, 0);
-
 }
 
 float4 plus(const float4 &a, const float4 &b) {
@@ -219,3 +235,18 @@ float radian(float r)
 {
 	return r * (pi180);
 }
+
+enum Refl_t { DIFF, SPEC, REFR };
+
+struct rayhit
+{
+	int32_t tet;
+	int32_t face;
+	float4 pos;
+	Refl_t refl;
+	float r;
+	float g;
+	float b;
+	bool wall = false;
+	bool constrained = false;
+};
