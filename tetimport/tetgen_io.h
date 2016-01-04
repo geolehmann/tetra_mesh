@@ -317,6 +317,17 @@ BBox init_BBox(mesh2* mesh)
 	return boundingbox;
 }
 
+void CheckOutOfBBox(BBox* boundingbox, float4 &p)
+{
+	if (boundingbox->min.x + 0.2 < p.x)  p.x = boundingbox->min.x;
+	if (boundingbox->max.x - 0.2 > p.x)  p.x = boundingbox->max.x;
+	if (boundingbox->min.y + 0.2 < p.y)  p.y = boundingbox->min.y;
+	if (boundingbox->max.y - 0.2 > p.y)  p.y = boundingbox->max.y;
+	if (boundingbox->min.z + 0.2 < p.z)  p.z = boundingbox->min.z;
+	if (boundingbox->max.z - 0.2 > p.z)  p.z = boundingbox->max.z;
+}
+
+
 __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
 	face = 0;
@@ -390,8 +401,8 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 		}*/
 		depth++;
 
-		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
-		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
+		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = idx; break; }
+		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = idx; break; }
 		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = idx; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
 		idx = nexttet;
@@ -400,6 +411,7 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 			//avoid infinite loops
 			d.wall = true;
 			d.face = lastface;
+			d.tet = idx;
 			break;
 		}
 	}

@@ -40,7 +40,7 @@ bool keys[1024];
 GLfloat sensitivity = 0.15f;
 bool firstMouse = true;
 float4 cam_o = make_float4(-14, 11, 11, 0);
-float4 cam_d = make_float4(0, 0, 0, 0);
+float4 cam_d = make_float4(0.1f, 0.1f, 0.1f, 0);
 float4 cam_u = make_float4(0, 0, 1, 0);
 GLfloat Yaw = 90.0f;	// horizontal inclination
 GLfloat Pitch = 0.0f; // vertikal inclination
@@ -86,6 +86,7 @@ static void error_callback(int error, const char* description)
 
 void updateCamPos()
 {
+	CheckOutOfBBox(&box, cam_o);
 	//look for new tetrahedra...
 	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
@@ -117,22 +118,22 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		
 	if (keys[GLFW_KEY_A])
 	{
-		updateCamPos;
+		updateCamPos();
 		cam_o -= normalizeCPU(CrossCPU(minus(cam_d, cam_o), cam_u)) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_D])
 	{
-		updateCamPos;
+		updateCamPos();
 		cam_o += normalizeCPU(CrossCPU(minus(cam_d, cam_o), cam_u)) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_W])
 	{
-		updateCamPos;
+		updateCamPos();
 		cam_o += minus(cam_d, cam_o) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_S])
 	{
-		updateCamPos;
+		updateCamPos();
 		cam_o -= minus(cam_d, cam_o) * cameraSpeed;
 	}
 }
@@ -206,45 +207,118 @@ __device__ RGB visualizeDepth(Ray r, mesh2 *mesh, int32_t start, int depth)
 }
 
 
-__device__ RGB radiance(mesh2 *mesh, int32_t &start, float4 ray_o, float4 ray_d)
+__device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* randState)
 {
 	Ray r;
+	r.d = ray.d;
+	r.o = ray.o;
+
 	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 0.0f);	// colour mask
 	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
-	float4 f;  // primitive colour
-	float4 emit; // primitive emission colour
-	float4 x; // intersection point
-	float4 n; // normal
-	float4 nl; // oriented normal
-	float4 d; // ray direction of next path segment
-	r.d = ray_d;
-	r.o = ray_o;
+	int pd=0;
 
 	for (int depth = 1; depth <= MAX_DEPTH; depth++)
 	{
+		float4 f;  // primitive colour
+		float4 emit; // primitive emission colour
+		float4 x; // intersection point
+		float4 n; // normal
+		float4 nl; // oriented normal
+		float4 d; // ray direction of next path segment
+
 
 		rayhit firsthit;
-		traverse_ray(mesh, r, start, firsthit, depth);
+		traverse_ray(mesh, r, start, firsthit, pd);
+
 		// set new starting tetrahedra and ray origin
 		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
 		float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
 		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
-		float t = abs(intersect_dist(r, a1, a2, a3));
+		// get intersection distance
+		float t = intersect_dist(r, a1, a2, a3);
 
 		x = r.o + r.d*t;  // intersection point
 		n = normalize(getTriangleNormal(a1, a2, a3));  // normal 
 		nl = Dot(n, r.d) < 0 ? n : n * -1;  // correctly oriented normal
-		f = make_float4(0.9f, 0.4f, 0.1f, 0.0f);  // triangle colour
-		emit = make_float4(0.6f, 0.6f, 0.6f, 0.0f);
+		f = make_float4(0.9f, 0.4f, 0.9f, 0.0f);  // triangle colour
+		emit = make_float4(0.6f, 0.7f, 0.1f, 0.0f);
 		accucolor += (mask * emit);
 
 
-		firsthit.refl = SPEC;
+		firsthit.refl = REFR;
+
+		// ideal refraction (based on smallpt code by Kevin Beason)
+		if (firsthit.refl == REFR){
+
+			bool into = Dot(n, nl) > 0; // is ray entering or leaving refractive material?
+			float nc = 1.0f;  // Index of Refraction air
+			float nt = 1.5f;  // Index of Refraction glass/water
+			float nnt = into ? nc / nt : nt / nc;  // IOR ratio of refractive materials
+			float ddn = Dot(r.d, nl);
+			float cos2t = 1.0f - nnt*nnt * (1.f - ddn*ddn);
+
+			if (cos2t < 0.0f) // total internal reflection 
+			{
+				d = reflect(r.d, n); //d = r.dir - 2.0f * n * dot(n, r.dir);
+				x += nl * 0.01f;
+			}
+			else // cos2t > 0
+			{
+				// compute direction of transmission ray
+				float4 tdir = normalize(r.d * nnt - n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t))));
+
+				float R0 = (nt - nc)*(nt - nc) / (nt + nc)*(nt + nc);
+				float c = 1.f - (into ? -ddn : Dot(tdir, n));
+				float Re = R0 + (1.f - R0) * c * c * c * c * c;
+				float Tr = 1 - Re; // Transmission
+				float P = .25f + .5f * Re;
+				float RP = Re / P;
+				float TP = Tr / (1.f - P);
+
+				// randomly choose reflection or transmission ray
+				if (curand_uniform(randState) < 0.25) // reflection ray
+				{
+					mask *= RP;
+					d = reflect(r.d, n);
+					x += nl * 0.02f;
+				}
+				else // transmission ray
+				{
+					mask *= TP;
+					d = tdir; //r = Ray(x, tdir); 
+					x += nl * 0.0005f; // epsilon must be small to avoid artefacts
+				}
+			}
+		}
+
+
+		// ideal diffuse reflection (see "Realistic Ray Tracing", P. Shirley)
+		if (firsthit.refl == DIFF){
+
+			// create 2 random numbers
+			float r1 = 2 * PI * curand_uniform(randState);
+			float r2 = curand_uniform(randState);
+			float r2s = sqrtf(r2);
+
+			// compute orthonormal coordinate frame uvw with hitpoint as origin 
+			float4 w = nl;
+			float4 u = normalize(Cross((fabs(w.x) > .1 ? make_float4(0, 1, 0, 0) : make_float4(1, 0, 0, 0)), w));
+			float4 v = Cross(w, u);
+
+			// compute cosine weighted random ray direction on hemisphere 
+			d = normalize(u*cos(r1)*r2s + v*sin(r1)*r2s + w*sqrtf(1 - r2));
+
+			// offset origin next path segment to prevent self intersection
+			x += nl * 0.03;
+
+			// multiply mask with colour of object
+			mask *= f;
+		}
 
 
 		if (firsthit.refl == SPEC)
 		{
-			// compute relfected ray direction according to Snell's law
+			// compute reflected ray direction according to Snell's law
 			d = r.d - 2.0f * n * Dot(n, r.d);
 			// offset origin next path segment to prevent self intersection
 			x += nl * 0.01f;
@@ -252,7 +326,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, float4 ray_o, float4 ray_d)
 			mask *= f;
 		}
 		r.o = x;
-		r.d = d;
+		r.d = d; // new ray direction
 		start = firsthit.tet; // new tet origin
 	}
 	RGB rgb;
@@ -273,20 +347,25 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 	curandState randState;
 	curand_init(hashedframenumber + threadId, 0, 0, &randState);
 
-	RGB c0(0,0,0);
+
+	RGB pixelcol;
 	for (int s = 0; s < spp; s++)
 	{
 		float yu = 1.0f - ((y + curand_uniform(&randState)) / float(height - 1));
 		float xu = (x + curand_uniform(&randState)) / float(width - 1);
 		Ray ray = makeCameraRay(fov, cam_o, cam_d, cam_u, xu, yu);
-		RGB rd = visualizeDepth(ray, tetmesh, start, 0);
-		// RGB rd = radiance(tetmesh, start, ray.o, ray.d);
-		c0 = c0 + rd;
+		//RGB rd = visualizeDepth(ray, tetmesh, start, 0);
+		pixelcol = pixelcol + radiance(tetmesh, start, ray, &randState);
 	}
-	c0 = c0 / 4;
+	float3 tmpcol;
+	tmpcol.x = pixelcol.x;
+	tmpcol.y = pixelcol.y;
+	tmpcol.z = pixelcol.z;
+	c[i] = c[i] + tmpcol;
+	pixelcol = pixelcol / spp;
 
 	Color fcolour;
-	float3 colour = make_float3(clamp(c0.x, 0.0f, 1.0f), clamp(c0.y, 0.0f, 1.0f), clamp(c0.z, 0.0f, 1.0f));
+	float3 colour = make_float3(clamp(pixelcol.x, 0.0f, 1.0f), clamp(pixelcol.y, 0.0f, 1.0f), clamp(pixelcol.z, 0.0f, 1.0f));
 
 	fcolour.components = make_uchar4((unsigned char)(powf(colour.x, 1 / gamma) * 255), (unsigned char)(powf(colour.y, 1 / gamma) * 255), (unsigned char)(powf(colour.z, 1 / gamma) * 255), 1);
 	c[i] = make_float3(x, y, fcolour.c);

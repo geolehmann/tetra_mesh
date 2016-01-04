@@ -24,7 +24,10 @@
 typedef int int32_t;
 typedef unsigned int uint32_t;
 
-
+__device__ float3 operator+(const float3 &a, const float3 &b)
+{
+	return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
+}
 
 __device__ float4 operator-(const float4 &a, const float4 &b) 
 {
@@ -155,7 +158,7 @@ __device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, c
 	float4 forward = target; // normalize(target - origin);
 	float4 right = normalize(Cross(forward, targetUpDirection));
 	float4 up = normalize(Cross(right, forward));
-	float tanFov = tan(fieldOfViewInDegrees * pi180);
+	float tanFov = __tanf(fieldOfViewInDegrees * pi180); // __tanf is recognized by CUDA
 	Ray ray;
 	ray.o = origin;
 	ray.d = forward + right * ((xScreenPos0To1 - 0.5f) * tanFov) + up * ((yScreenPos0To1 - 0.5f) * tanFov);
