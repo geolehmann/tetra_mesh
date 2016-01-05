@@ -14,7 +14,6 @@
 */
 
 #define GLEW_STATIC
-#include <stdio.h>
 #include "tetgen_io.h"
 #include "cuPrintf.cuh"
 #include "device_launch_parameters.h"
@@ -24,15 +23,15 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-const int width = 640, height=480, spp = 4;
+const int width = 640, height=480, spp = 1;
 float3* cr;
+float3* accumulatebuffer;
 int frames = 0;
-__device__ float gamma = 2.2f;
+__device__ float gamma = 1.0f;
 __device__ float fov = 40.0f;
 BBox box;
 GLuint vbo;
 mesh2 *mesh;
-
 #define MAX_DEPTH 3
 
 // Camera
@@ -54,7 +53,6 @@ union Color  // 4 bytes = 4 chars = 1 float
 	float c;
 	uchar4 components;
 };
-
 
 // CUDA error checking
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -178,20 +176,13 @@ __device__ float getDepth(Ray r, mesh2 *mesh, int32_t face)
 	float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[face]], mesh->n_y[mesh->f_node_b[face]], mesh->n_z[mesh->f_node_b[face]], 0);
 	float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[face]], mesh->n_y[mesh->f_node_c[face]], mesh->n_z[mesh->f_node_c[face]], 0);
 	float c = abs(intersect_dist(r, a1, a2, a3));
-	float new_value = ((c - 0.0f) / (100.0f - 0.0f)) * (1.0f - 0.0f) + 0.0f;
+	float new_value = ((c - 0.0f) / (100.0f - 0.0f)) * (1.0f - 0.0f) + 0.0f; // assume max depth of 100, color conversion to 0-1 range
 	return new_value;
 }
 
 __device__ float4 getTriangleNormal(const float4 &p1, const float4 &p2, const float4 &p3)
 {
-	float4 V1 = (p2 - p1);
-	float4 V2 = (p3 - p1);
-	float4 surfaceNormal;
-	surfaceNormal.x = (V1.y*V2.z) - (V1.z - V2.y);
-	surfaceNormal.y = -((V2.z * V1.x) - (V2.x * V1.z));
-	surfaceNormal.z = (V1.x*V2.y) - (V1.y*V2.x);
-	surfaceNormal = normalize(surfaceNormal);
-	return surfaceNormal;
+	return(Cross(p2 - p1, p3 - p1));
 }
 
 __device__ RGB visualizeDepth(Ray r, mesh2 *mesh, int32_t start, int depth)
@@ -240,10 +231,9 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 		x = r.o + r.d*t;  // intersection point
 		n = normalize(getTriangleNormal(a1, a2, a3));  // normal 
 		nl = Dot(n, r.d) < 0 ? n : n * -1;  // correctly oriented normal
-		f = make_float4(0.9f, 0.4f, 0.9f, 0.0f);  // triangle colour
-		emit = make_float4(0.6f, 0.7f, 0.1f, 0.0f);
+		f = make_float4(0.3f, 0.4f, 0.1f, 0.0f);  // triangle colour
+		emit = make_float4(0.1f, 0.1f, 0.1f, 0.0f);
 		accucolor += (mask * emit);
-
 
 		firsthit.refl = REFR;
 
@@ -337,7 +327,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 }
 
 
-__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d, float4 cam_u, float3 *c, unsigned int hashedframenumber)
+__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d, float4 cam_u, float3 *accumbuffer, float3 *c, unsigned int hashedframenumber, int framenumber)
 {
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -348,24 +338,21 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 	curand_init(hashedframenumber + threadId, 0, 0, &randState);
 
 
-	RGB pixelcol;
+	RGB pixelcol(0);
 	for (int s = 0; s < spp; s++)
 	{
 		float yu = 1.0f - ((y + curand_uniform(&randState)) / float(height - 1));
 		float xu = (x + curand_uniform(&randState)) / float(width - 1);
 		Ray ray = makeCameraRay(fov, cam_o, cam_d, cam_u, xu, yu);
 		//RGB rd = visualizeDepth(ray, tetmesh, start, 0);
-		pixelcol = pixelcol + radiance(tetmesh, start, ray, &randState);
+		pixelcol += radiance(tetmesh, start, ray, &randState)*(1. / spp);
 	}
-	float3 tmpcol;
-	tmpcol.x = pixelcol.x;
-	tmpcol.y = pixelcol.y;
-	tmpcol.z = pixelcol.z;
-	c[i] = c[i] + tmpcol;
-	pixelcol = pixelcol / spp;
+
+	accumbuffer[i] += pixelcol;
+	float3 tempcol = accumbuffer[i] / framenumber;
 
 	Color fcolour;
-	float3 colour = make_float3(clamp(pixelcol.x, 0.0f, 1.0f), clamp(pixelcol.y, 0.0f, 1.0f), clamp(pixelcol.z, 0.0f, 1.0f));
+	float3 colour = make_float3(clamp(tempcol.x, 0.0f, 1.0f), clamp(tempcol.y, 0.0f, 1.0f), clamp(tempcol.z, 0.0f, 1.0f));
 
 	fcolour.components = make_uchar4((unsigned char)(powf(colour.x, 1 / gamma) * 255), (unsigned char)(powf(colour.y, 1 / gamma) * 255), (unsigned char)(powf(colour.z, 1 / gamma) * 255), 1);
 	c[i] = make_float3(x, y, fcolour.c);
@@ -409,6 +396,7 @@ void render()
 
 	while (!glfwWindowShouldClose(window))
 	{
+		frames++;
 		// Calculate deltatime of current frame
 		GLfloat currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
@@ -423,7 +411,7 @@ void render()
 
 		dim3 block(8, 8, 1);
 		dim3 grid(width / block.x, height / block.y, 1);
-		renderKernel << <grid, block >> >(mesh, _start_tet, cam_o, cam_d, cam_u, cr, WangHash(frames));
+		renderKernel << <grid, block >> >(mesh, _start_tet, cam_o, cam_d, cam_u, accumulatebuffer, cr, WangHash(frames), frames);
 		gpuErrchk(cudaDeviceSynchronize());
 
 		cudaGLUnmapBufferObject(vbo);
@@ -529,8 +517,9 @@ int main(int argc, char *argv[])
 	fprintf_s(stderr, "\nBounding box:MIN xyz - %f %f %f \n", box.min.x, box.min.y, box.min.z);
 	fprintf_s(stderr, "             MAX xyz - %f %f %f \n\n", box.max.x, box.max.y, box.max.z);
 
-	// Get camera starting tetrahedra
+	// Allocate unified memory
 	gpuErrchk(cudaMallocManaged(&cr, width * height * sizeof(float3)));
+	gpuErrchk(cudaMallocManaged(&accumulatebuffer, width * height * sizeof(float3)));
 
 	// grid dimensions for finding starting tetrahedra
 	uint32_t _dim = 2+pow(mesh->tetnum, 0.25);

@@ -14,6 +14,7 @@
 */
 
 #pragma once
+#include <stdio.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -406,7 +407,7 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = idx; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
 		idx = nexttet;
-		if (depth > 80) 
+		if (depth > 30) // vorher 80
 		{
 			//avoid infinite loops
 			d.wall = true;
