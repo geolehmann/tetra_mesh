@@ -40,3 +40,7 @@ snippet: GetExitTet testing
 		make_float4(0,2,0, 0),
 		make_float4(0,0,2, 0) };
 	GetExitTet(cam.o, cam.d, nodes,findex,adjtets,lastface,nextface,nexttet);
+
+
+if (firsthit.face % 2)	emit = make_float4(0.03f, 0.03f, 0.03f, 0.0f);
+else emit = make_float4(0.5f, 0.5f, 0.5f, 0.0f); // modern art...

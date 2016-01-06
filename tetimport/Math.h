@@ -30,12 +30,12 @@ enum Refl_t { DIFF, SPEC, REFR };
 
 __device__ float3 operator/(const float3 &a, const int &b) { return make_float3(a.x / b, a.y / b, a.z / b); }
 __device__ float3 operator+(const float3 &a, const float3 &b) {	return make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
-__device__ float3 operator+=(float3 &a, const float3 b) { return a = a + b; }
+__device__ float3 operator+=(float3 &a, const float3 b) { a.x += b.x; a.y += b.y; a.z += b.z; return make_float3(0, 0, 0); }
 
-__device__ float4 operator+(const float4 &a, const float4 &b) {	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, 0); }
-__device__ float4 operator-(const float4 &a, const float4 &b) {	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0); }
+__device__ float4 operator+(const float4 &a, const float4 &b) { return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); }
+__device__ float4 operator-(const float4 &a, const float4 &b) { return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w); }
 __device__ float4 operator*(float4 &a, float4 &b) {	return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
-__device__ __host__ float4 operator*(const float4 &a, const float &b) {	return make_float4(a.x*b, a.y*b, a.z*b, 0); }
+__device__ __host__ float4 operator*(const float4 &a, const float &b) {	return make_float4(a.x*b, a.y*b, a.z*b, a.w*b); }
 __device__ float4 operator*(float b, float4 &a) { return make_float4(a.x * b, a.y * b, a.z * b, a.w * b);}
 __device__ void operator*=(float4 &a, float4 b) { a.x *= b.x; a.y *= b.y; a.z *= b.z; a.w *= b.w; }
 __device__ void operator*=(float4 &a, float &b) { a.x *= b; a.y *= b; a.z *= b; a.w *= b; }
@@ -96,18 +96,20 @@ inline __device__ __host__ float clamp(float f, float a, float b)
 struct RGB
 {
 	float x, y, z;
-	__device__ RGB(float x0, float y0, float z0){ x = x0; y = y0; z = z0; }
+	__device__ RGB(double x_, double y_, double z_) { x = x_; y = y_; z = z_; }
 	__device__ RGB(float xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
 	__device__ RGB operator/(float b) const { return RGB(x / b, y / b, z / b); }
 	__device__ RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 	__device__ RGB operator*(const double &b) const { return RGB(x * b, y * b, z * b); }
 };
-__device__ RGB operator+=(RGB &a, const RGB b) { return a = a + b; }
+__device__ RGB operator+=(RGB &a, const RGB b) { a.x += b.x; a.y += b.y; a.z += b.z; }
 __device__ float3 operator+=(float3 &a, const RGB b) { a = make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
 
 struct Ray
 {
 	float4 o, d, u;
+	__device__ Ray(){}
+	__device__ Ray(float4 o_, float4 d_) : o(o_), d(d_) {}
 };
 
 __device__ float intersect_dist(Ray ray, float4 a, float4 b, float4 c)
@@ -208,10 +210,9 @@ struct rayhit
 	int32_t tet;
 	int32_t face;
 	float4 pos;
-	Refl_t refl;
-	float r;
-	float g;
-	float b;
+	float4 color;
+	float4 ref;
+	Refl_t refl_t;
 	bool wall = false;
 	bool constrained = false;
 };

@@ -26,8 +26,8 @@
 const int width = 640, height=480, spp = 1;
 float3* cr;
 float3* accumulatebuffer;
-int frames = 0;
-__device__ float gamma = 1.0f;
+uint32_t frames = 0;
+__device__ float gamma = 1.5f;
 __device__ float fov = 40.0f;
 BBox box;
 GLuint vbo;
@@ -38,8 +38,8 @@ mesh2 *mesh;
 bool keys[1024];
 GLfloat sensitivity = 0.15f;
 bool firstMouse = true;
-float4 cam_o = make_float4(-14, 11, 11, 0);
-float4 cam_d = make_float4(0.1f, 0.1f, 0.1f, 0);
+float4 cam_o = make_float4(0.0f, 0.0f, 0.0f, 0);
+float4 cam_d = make_float4(3.1f, 3.1f, 3.1f, 0);
 float4 cam_u = make_float4(0, 0, 1, 0);
 GLfloat Yaw = 90.0f;	// horizontal inclination
 GLfloat Pitch = 0.0f; // vertikal inclination
@@ -200,13 +200,8 @@ __device__ RGB visualizeDepth(Ray r, mesh2 *mesh, int32_t start, int depth)
 
 __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* randState)
 {
-	Ray r;
-	r.d = ray.d;
-	r.o = ray.o;
-
 	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 0.0f);	// colour mask
 	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
-	int pd=0;
 
 	for (int depth = 1; depth <= MAX_DEPTH; depth++)
 	{
@@ -219,43 +214,45 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 
 
 		rayhit firsthit;
-		traverse_ray(mesh, r, start, firsthit, pd);
+		traverse_ray(mesh, ray, start, firsthit, depth);
 
 		// set new starting tetrahedra and ray origin
 		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
 		float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
 		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
 		// get intersection distance
-		float t = intersect_dist(r, a1, a2, a3);
+		float t = intersect_dist(ray, a1, a2, a3);
 
-		x = r.o + r.d*t;  // intersection point
+		x = ray.o + ray.d*t;  // intersection point
 		n = normalize(getTriangleNormal(a1, a2, a3));  // normal 
-		nl = Dot(n, r.d) < 0 ? n : n * -1;  // correctly oriented normal
-		f = make_float4(0.3f, 0.4f, 0.1f, 0.0f);  // triangle colour
-		emit = make_float4(0.1f, 0.1f, 0.1f, 0.0f);
+		nl = Dot(n, ray.d) < 0 ? n : n * -1;  // correctly oriented normal
+		f = make_float4(0.9f, 0.4f, 0.1f, 0.0f);  // triangle colour
+		emit = make_float4(0.03f, 0.03f, 0.03f, 0.0f);
+
 		accucolor += (mask * emit);
 
-		firsthit.refl = REFR;
+		firsthit.refl_t = REFR;
 
 		// ideal refraction (based on smallpt code by Kevin Beason)
-		if (firsthit.refl == REFR){
+		if (firsthit.refl_t == REFR)
+		{
 
 			bool into = Dot(n, nl) > 0; // is ray entering or leaving refractive material?
 			float nc = 1.0f;  // Index of Refraction air
 			float nt = 1.5f;  // Index of Refraction glass/water
 			float nnt = into ? nc / nt : nt / nc;  // IOR ratio of refractive materials
-			float ddn = Dot(r.d, nl);
+			float ddn = Dot(ray.d, nl);
 			float cos2t = 1.0f - nnt*nnt * (1.f - ddn*ddn);
 
 			if (cos2t < 0.0f) // total internal reflection 
 			{
-				d = reflect(r.d, n); //d = r.dir - 2.0f * n * dot(n, r.dir);
+				d = reflect(ray.d, n); //d = r.dir - 2.0f * n * dot(n, r.dir);
 				x += nl * 0.01f;
 			}
 			else // cos2t > 0
 			{
 				// compute direction of transmission ray
-				float4 tdir = normalize(r.d * nnt - n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t))));
+				float4 tdir = normalize(ray.d * nnt - n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t))));
 
 				float R0 = (nt - nc)*(nt - nc) / (nt + nc)*(nt + nc);
 				float c = 1.f - (into ? -ddn : Dot(tdir, n));
@@ -269,7 +266,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 				if (curand_uniform(randState) < 0.25) // reflection ray
 				{
 					mask *= RP;
-					d = reflect(r.d, n);
+					d = reflect(ray.d, n);
 					x += nl * 0.02f;
 				}
 				else // transmission ray
@@ -283,7 +280,8 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 
 
 		// ideal diffuse reflection (see "Realistic Ray Tracing", P. Shirley)
-		if (firsthit.refl == DIFF){
+		if (firsthit.refl_t == DIFF)
+		{
 
 			// create 2 random numbers
 			float r1 = 2 * PI * curand_uniform(randState);
@@ -306,24 +304,23 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 		}
 
 
-		if (firsthit.refl == SPEC)
+		if (firsthit.refl_t == SPEC)
 		{
 			// compute reflected ray direction according to Snell's law
-			d = r.d - 2.0f * n * Dot(n, r.d);
+			d = ray.d - 2.0f * n * Dot(n, ray.d);
 			// offset origin next path segment to prevent self intersection
 			x += nl * 0.01f;
 			// multiply mask with colour of object
 			mask *= f;
 		}
-		r.o = x;
-		r.d = d; // new ray direction
+
+		ray.o = x;
+		ray.d = d; // new ray direction
 		start = firsthit.tet; // new tet origin
 	}
-	RGB rgb;
-	rgb.x = accucolor.x;
-	rgb.y = accucolor.y;
-	rgb.z = accucolor.z;
-	return rgb;
+	// add radiance up to a certain ray depth
+	// return accumulated ray colour after all bounces are computed
+	return RGB(accucolor.x, accucolor.y, accucolor.z);
 }
 
 
@@ -383,7 +380,6 @@ void render()
 
 	glClearColor(0.0, 0.0, 0.0, 0.0);
 	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
 	glOrtho(0.0, width, 0.0, height, 0, 1);
 	
 	glGenBuffers(1, &vbo);
@@ -397,6 +393,7 @@ void render()
 	while (!glfwWindowShouldClose(window))
 	{
 		frames++;
+		gpuErrchk(cudaDeviceSynchronize());
 		// Calculate deltatime of current frame
 		GLfloat currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
@@ -404,10 +401,11 @@ void render()
 		std::stringstream title;
 		title << "tetra_mesh (2015)   -   deltaTime: " << deltaTime*1000 << " ms. (16-36 optimal)";
 		glfwSetWindowTitle(window, title.str().c_str());
-
-		glClear(GL_COLOR_BUFFER_BIT);
 		glfwPollEvents();
+
 		cudaGLMapBufferObject((void**)&cr, vbo);
+		glClear(GL_COLOR_BUFFER_BIT);
+
 
 		dim3 block(8, 8, 1);
 		dim3 grid(width / block.x, height / block.y, 1);
@@ -422,7 +420,6 @@ void render()
 		glEnableClientState(GL_COLOR_ARRAY);
 		glDrawArrays(GL_POINTS, 0, width * height);
 		glDisableClientState(GL_VERTEX_ARRAY);
-
 		glfwSwapBuffers(window);
 	}
 }
@@ -437,11 +434,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("test1.1.ele");
-	tetmesh.load_tet_neigh("test1.1.neigh");
-	tetmesh.load_tet_node("test1.1.node");
-	tetmesh.load_tet_face("test1.1.face");
-	tetmesh.load_tet_t2f("test1.1.t2f");
+	tetmesh.load_tet_ele("test4.1.ele");
+	tetmesh.load_tet_neigh("test4.1.neigh");
+	tetmesh.load_tet_node("test4.1.node");
+	tetmesh.load_tet_face("test4.1.face");
+	tetmesh.load_tet_t2f("test4.1.t2f");
 
 
 	// ===========================
@@ -521,7 +518,7 @@ int main(int argc, char *argv[])
 	gpuErrchk(cudaMallocManaged(&cr, width * height * sizeof(float3)));
 	gpuErrchk(cudaMallocManaged(&accumulatebuffer, width * height * sizeof(float3)));
 
-	// grid dimensions for finding starting tetrahedra
+	// find starting tetrahedra
 	uint32_t _dim = 2+pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
@@ -537,7 +534,6 @@ int main(int argc, char *argv[])
 	} else fprintf(stderr, "Starting tetrahedra - camera: %lu \n", _start_tet);
 	
 	// main render function
-
 	render();
 
 	gpuErrchk(cudaDeviceReset());
