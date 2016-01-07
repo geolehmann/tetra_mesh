@@ -346,23 +346,26 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 	float4 v3 = make_float4(nodes[2].x, nodes[2].y, nodes[2].z, 0); // C
 	float4 v4 = make_float4(nodes[3].x, nodes[3].y, nodes[3].z, 0); // D
 
-	float4 p[4] = { v1 - ray_o, v2 - ray_o, v3 - ray_o, v4 - ray_o };
+	float4 p0 = v1 - ray_o;
+	float4 p1 = v2 - ray_o;
+	float4 p2 = v3 - ray_o;
+	float4 p3 = v4 - ray_o;
 
-	float u_3 = ScTP(q, p[0], p[1]);
-	float v_3 = ScTP(q, p[1], p[2]);
-	float w_3 = ScTP(q, p[2], p[0]);
+	float u_3 = ScTP(q, p0, p1);
+	float v_3 = ScTP(q, p1, p2);
+	float w_3 = ScTP(q, p2, p0);
 
-	float u_2 = ScTP(q, p[1], p[0]);
-	float v_2 = ScTP(q, p[0], p[3]);
-	float w_2 = ScTP(q, p[3], p[1]);
+	float u_2 = ScTP(q, p1, p0);
+	float v_2 = ScTP(q, p0, p3);
+	float w_2 = ScTP(q, p3, p1);
 
-	float u_1 = ScTP(q, p[2], p[3]);
-	float v_1 = ScTP(q, p[3], p[0]);
-	float w_1 = ScTP(q, p[0], p[2]);
+	float u_1 = ScTP(q, p2, p3);
+	float v_1 = ScTP(q, p3, p0);
+	float w_1 = ScTP(q, p0, p2);
 
-	float u_0 = ScTP(q, p[3], p[2]);
-	float v_0 = ScTP(q, p[2], p[1]);
-	float w_0 = ScTP(q, p[1], p[3]);
+	float u_0 = ScTP(q, p3, p2);
+	float v_0 = ScTP(q, p2, p1);
+	float w_0 = ScTP(q, p1, p3);
 
 	// ScTP funktioniert auch mit float4.
 	// ABC

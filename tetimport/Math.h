@@ -102,14 +102,14 @@ struct RGB
 	__device__ RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 	__device__ RGB operator*(const double &b) const { return RGB(x * b, y * b, z * b); }
 };
-__device__ RGB operator+=(RGB &a, const RGB b) { a.x += b.x; a.y += b.y; a.z += b.z; }
-__device__ float3 operator+=(float3 &a, const RGB b) { a = make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
+__device__ RGB operator+=(RGB &a, const RGB b) { a.x += b.x; a.y += b.y; a.z += b.z; return RGB(0); }
+__device__ float3 operator+=(float3 &a, const RGB b) { a = make_float3(a.x + b.x, a.y + b.y, a.z + b.z); return make_float3(0, 0, 0); }
 
 struct Ray
 {
 	float4 o, d, u;
-	__device__ Ray(){}
-	__device__ Ray(float4 o_, float4 d_) : o(o_), d(d_) {}
+	__device__ Ray(){ o = make_float4(0, 0, 0, 0); d = make_float4(0, 0, 0, 0); u = make_float4(0, 0, 0, 0); }
+	__device__ Ray(float4 o_, float4 d_) : o(o_), d(d_) { o = o_; d = d_; }
 };
 
 __device__ float intersect_dist(Ray ray, float4 a, float4 b, float4 c)
@@ -148,8 +148,8 @@ float4 normalizeCPU(float4 a)
 float4 CrossCPU(const float4 a, const float4 b)
 {
 	float4 cross = { a.y * b.z - a.z * b.y,
-		a.z * b.x - a.x * b.z,
-		a.x * b.y - a.y * b.x };
+					a.z * b.x - a.x * b.z,
+					a.x * b.y - a.y * b.x };
 	return cross;
 }
 
@@ -207,12 +207,12 @@ struct mesh2
 
 struct rayhit
 {
-	int32_t tet;
-	int32_t face;
 	float4 pos;
 	float4 color;
 	float4 ref;
 	Refl_t refl_t;
+	int32_t tet;
+	int32_t face;
 	bool wall = false;
 	bool constrained = false;
 };

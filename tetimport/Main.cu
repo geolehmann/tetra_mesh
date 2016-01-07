@@ -37,9 +37,10 @@ mesh2 *mesh;
 // Camera
 bool keys[1024];
 GLfloat sensitivity = 0.15f;
+bool mouseMoved = false;
 bool firstMouse = true;
 float4 cam_o = make_float4(0.0f, 0.0f, 0.0f, 0);
-float4 cam_d = make_float4(3.1f, 3.1f, 3.1f, 0);
+float4 cam_d = make_float4(3.1f, 23.1f, 3.1f, 0);
 float4 cam_u = make_float4(0, 0, 1, 0);
 GLfloat Yaw = 90.0f;	// horizontal inclination
 GLfloat Pitch = 0.0f; // vertikal inclination
@@ -166,6 +167,8 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 	front.y = sin(radian(Pitch));
 	front.z = sin(radian(Yaw)) * cos(radian(Pitch));
 	cam_d = normalizeCPU(front);
+
+	mouseMoved = true;
 }
 
 
@@ -386,7 +389,9 @@ void render()
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, width * height * sizeof(float3), 0, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	cudaGLRegisterBufferObject(vbo);
+	cudaGraphicsResource_t _cgr;
+	size_t num_bytes;
+	cudaGraphicsGLRegisterBuffer(&_cgr, vbo, cudaGraphicsRegisterFlagsNone);
 	fprintf(stderr, "VBO created  \n");
 	fprintf(stderr, "Entering glutMainLoop...  \n");
 
@@ -403,16 +408,29 @@ void render()
 		glfwSetWindowTitle(window, title.str().c_str());
 		glfwPollEvents();
 
-		cudaGLMapBufferObject((void**)&cr, vbo);
-		glClear(GL_COLOR_BUFFER_BIT);
+		if (mouseMoved) 
+		{
+			// mouse has moved, reset accumulation buffer
+			frames = 0; 
+			cudaMemset(accumulatebuffer, 0, width*height * sizeof(float3));
+			mouseMoved = false; 
+		}
 
+
+
+		cudaGraphicsMapResources(1, &_cgr, 0);
+		cudaGraphicsResourceGetMappedPointer((void**)&cr, &num_bytes,_cgr);
+
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		dim3 block(8, 8, 1);
 		dim3 grid(width / block.x, height / block.y, 1);
 		renderKernel << <grid, block >> >(mesh, _start_tet, cam_o, cam_d, cam_u, accumulatebuffer, cr, WangHash(frames), frames);
 		gpuErrchk(cudaDeviceSynchronize());
 
-		cudaGLUnmapBufferObject(vbo);
+		//cudaGLUnmapBufferObject(vbo);
+		cudaGraphicsUnmapResources(1, &_cgr, 0);
+
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 		glVertexPointer(2, GL_FLOAT, 12, 0);
 		glColorPointer(4, GL_UNSIGNED_BYTE, 12, (GLvoid*)8);
