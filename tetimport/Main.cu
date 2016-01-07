@@ -412,7 +412,7 @@ void render()
 		{
 			// mouse has moved, reset accumulation buffer
 			frames = 0; 
-			cudaMemset(accumulatebuffer, 0, width*height * sizeof(float3));
+			cudaMemset(accumulatebuffer, 1, width*height * sizeof(float3));
 			mouseMoved = false; 
 		}
 
