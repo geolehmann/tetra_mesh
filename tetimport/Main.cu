@@ -34,13 +34,15 @@ GLuint vbo;
 mesh2 *mesh;
 #define MAX_DEPTH 3
 
+void *d_vbo_buffer = NULL; // 0901
+
 // Camera
 bool keys[1024];
 GLfloat sensitivity = 0.15f;
 bool mouseMoved = false;
 bool firstMouse = true;
 float4 cam_o = make_float4(0.0f, 0.0f, 0.0f, 0);
-float4 cam_d = make_float4(3.1f, 23.1f, 3.1f, 0);
+float4 cam_d = make_float4(12.1f, -32.1f, -33.1f, 0);
 float4 cam_u = make_float4(0, 0, 1, 0);
 GLfloat Yaw = 90.0f;	// horizontal inclination
 GLfloat Pitch = 0.0f; // vertikal inclination
@@ -85,6 +87,7 @@ static void error_callback(int error, const char* description)
 
 void updateCamPos()
 {
+	// check if current pos is still inside tetrahedralization
 	CheckOutOfBBox(&box, cam_o);
 	//look for new tetrahedra...
 	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
@@ -118,22 +121,26 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 	if (keys[GLFW_KEY_A])
 	{
 		updateCamPos();
-		cam_o -= normalizeCPU(CrossCPU(minus(cam_d, cam_o), cam_u)) * cameraSpeed;
+		mouseMoved = true;
+		cam_o -= normalizeCPU(CrossCPU(cam_d, cam_u)) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_D])
 	{
 		updateCamPos();
-		cam_o += normalizeCPU(CrossCPU(minus(cam_d, cam_o), cam_u)) * cameraSpeed;
+		mouseMoved = true;
+		cam_o += normalizeCPU(CrossCPU(cam_d, cam_u)) * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_W])
 	{
 		updateCamPos();
-		cam_o += minus(cam_d, cam_o) * cameraSpeed;
+		mouseMoved = true;
+		cam_o += cam_d * cameraSpeed;
 	}
 	if (keys[GLFW_KEY_S])
 	{
 		updateCamPos();
-		cam_o -= minus(cam_d, cam_o) * cameraSpeed;
+		mouseMoved = true;
+		cam_o -= cam_d * cameraSpeed;
 	}
 }
 
@@ -183,11 +190,6 @@ __device__ float getDepth(Ray r, mesh2 *mesh, int32_t face)
 	return new_value;
 }
 
-__device__ float4 getTriangleNormal(const float4 &p1, const float4 &p2, const float4 &p3)
-{
-	return(Cross(p2 - p1, p3 - p1));
-}
-
 __device__ RGB visualizeDepth(Ray r, mesh2 *mesh, int32_t start, int depth)
 {
 	rayhit firsthit;
@@ -206,7 +208,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 0.0f);	// colour mask
 	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
 
-	for (int depth = 1; depth <= MAX_DEPTH; depth++)
+	for (int depth = 0; depth < MAX_DEPTH; depth++)
 	{
 		float4 f;  // primitive colour
 		float4 emit; // primitive emission colour
@@ -217,7 +219,8 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 
 
 		rayhit firsthit;
-		traverse_ray(mesh, ray, start, firsthit, depth);
+		int tetra_depth;
+		traverse_ray(mesh, ray, start, firsthit, tetra_depth);
 
 		// set new starting tetrahedra and ray origin
 		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
@@ -230,11 +233,13 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 		n = normalize(getTriangleNormal(a1, a2, a3));  // normal 
 		nl = Dot(n, ray.d) < 0 ? n : n * -1;  // correctly oriented normal
 		f = make_float4(0.9f, 0.4f, 0.1f, 0.0f);  // triangle colour
-		emit = make_float4(0.03f, 0.03f, 0.03f, 0.0f);
+		emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+		if (firsthit.face >= 100 && firsthit.face <=200) emit = make_float4(30.03f, 30.03f, 30.03f, 0.0f);
 
 		accucolor += (mask * emit);
 
-		firsthit.refl_t = REFR;
+		firsthit.refl_t = DIFF;
 
 		// ideal refraction (based on smallpt code by Kevin Beason)
 		if (firsthit.refl_t == REFR)
@@ -337,15 +342,16 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 	curandState randState;
 	curand_init(hashedframenumber + threadId, 0, 0, &randState);
 
+	Ray cam(cam_o, cam_d);
+	float4 cx = make_float4(width * .5135 / height, 0.0f, 0.0f, 0.0f);  // ray direction offset along X-axis 
+	float4 cy = normalize(Cross(cx, cam.d)) * .5135; // ray dir offset along Y-axis, .5135 is FOV angle
 
 	RGB pixelcol(0);
 	for (int s = 0; s < spp; s++)
 	{
-		float yu = 1.0f - ((y + curand_uniform(&randState)) / float(height - 1));
-		float xu = (x + curand_uniform(&randState)) / float(width - 1);
-		Ray ray = makeCameraRay(fov, cam_o, cam_d, cam_u, xu, yu);
-		//RGB rd = visualizeDepth(ray, tetmesh, start, 0);
-		pixelcol += radiance(tetmesh, start, ray, &randState)*(1. / spp);
+		float4 d = cx*((.25 + x) / width - .5) + cy*((.25 + y) / height - .5) + cam.d;
+		d = normalize(d);
+		pixelcol += radiance(tetmesh, start, Ray(cam.o + d * 40, d), &randState)*(1. / spp);
 	}
 
 	accumbuffer[i] += pixelcol;
@@ -415,8 +421,7 @@ void render()
 			cudaMemset(accumulatebuffer, 1, width*height * sizeof(float3));
 			mouseMoved = false; 
 		}
-
-
+		
 
 		cudaGraphicsMapResources(1, &_cgr, 0);
 		cudaGraphicsResourceGetMappedPointer((void**)&cr, &num_bytes,_cgr);

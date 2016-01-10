@@ -18,7 +18,7 @@
 #include <cuda_runtime.h>
 #include <random>
 
-#define PI 3.1415926536
+#define PI 3.14159265359f
 #define pi180 PI/180
 
 typedef int int32_t;
@@ -108,8 +108,7 @@ __device__ float3 operator+=(float3 &a, const RGB b) { a = make_float3(a.x + b.x
 struct Ray
 {
 	float4 o, d, u;
-	__device__ Ray(){ o = make_float4(0, 0, 0, 0); d = make_float4(0, 0, 0, 0); u = make_float4(0, 0, 0, 0); }
-	__device__ Ray(float4 o_, float4 d_) : o(o_), d(d_) { o = o_; d = d_; }
+	__device__ Ray(float4 o_, float4 d_) : o(o_), d(d_) {}
 };
 
 __device__ float intersect_dist(Ray ray, float4 a, float4 b, float4 c)
@@ -123,7 +122,12 @@ __device__ float intersect_dist(Ray ray, float4 a, float4 b, float4 c)
 	return Dot(e2,r) / a_;
 }
 
-__device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, const float4& target, const float4& targetUpDirection, float xScreenPos0To1, float yScreenPos0To1)
+__device__ float4 getTriangleNormal(const float4 &p1, const float4 &p2, const float4 &p3)
+{
+	return(Cross(p2 - p1, p3 - p1)); // is okay
+}
+
+/*__device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, const float4& target, const float4& targetUpDirection, float xScreenPos0To1, float yScreenPos0To1)
 {
 	// from rayito raytracer - github.com/Tecla/Rayito
 	float4 forward = target; // normalize(target - origin);
@@ -135,7 +139,7 @@ __device__ Ray makeCameraRay(float fieldOfViewInDegrees, const float4& origin, c
 	ray.d = forward + right * ((xScreenPos0To1 - 0.5f) * tanFov) + up * ((yScreenPos0To1 - 0.5f) * tanFov);
 	ray.d = normalize(ray.d);
 	return ray;
-}
+}*/
 
 // ----------------------- non-CUDA math -----------------------
 
@@ -153,28 +157,14 @@ float4 CrossCPU(const float4 a, const float4 b)
 	return cross;
 }
 
-float4 operator-=(float4 &a, const float4 b) 
-{
-	a.x -= b.x; a.y -= b.y; a.z -= b.z; a.w -= b.w;
-	return make_float4(0,0,0,0);
-}
+float4 operator-=(float4 &a, const float4 b) { a.x -= b.x; a.y -= b.y; a.z -= b.z; a.w -= b.w;	return make_float4(0,0,0,0); }
 
-float4 plus(const float4 &a, const float4 &b) {
+float4 plus(const float4 &a, const float4 &b) {	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); }
 
-	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, 0);
+float4 minus(const float4 &a, const float4 &b) { return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w); }
 
-}
+float radian(float r) {	return r * (pi180); }
 
-float4 minus(const float4 &a, const float4 &b) {
-
-	return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, 0);
-
-}
-
-float radian(float r)
-{
-	return r * (pi180);
-}
 
 // ------------------------------- structure definitions -----------------------------
 
