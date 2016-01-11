@@ -337,9 +337,9 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 	// http://realtimecollisiondetection.net/blog/?p=13
 
 	// translate Ray to origin and vertices same as ray
-	float4 rd = ray_o + (ray_d * 1000);
+	ray_d = ray_o + (ray_d * 1000);
 
-	float4 q = rd - ray_o;
+	float4 q = ray_d - ray_o;
 
 	float4 v1 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
 	float4 v2 = make_float4(nodes[1].x, nodes[1].y, nodes[1].z, 0); // B
@@ -384,7 +384,7 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 {
 	depth = 0;
 	int32_t idx = start;
-	int32_t nexttet = 0, nextface = 0, lastface = 0;
+	int32_t nexttet, nextface, lastface = 0;
 	while (1)
 	{
 		int32_t findex[4] = { mesh->t_findex1[idx], mesh->t_findex2[idx], mesh->t_findex3[idx], mesh->t_findex4[idx] };
@@ -406,12 +406,12 @@ __device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int
 		}*/
 		depth++;
 
-		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = idx; break; }
-		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = idx; break; }
+		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
+		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
 		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = idx; break; } // when adjacent tetrahedra is -1, ray stops
 		lastface = nextface;
 		idx = nexttet;
-		if (depth > 50) // vorher 80
+		if (depth > 80) // vorher 80
 		{
 			//avoid infinite loops
 			d.wall = true;

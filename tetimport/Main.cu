@@ -34,15 +34,13 @@ GLuint vbo;
 mesh2 *mesh;
 #define MAX_DEPTH 3
 
-void *d_vbo_buffer = NULL; // 0901
-
 // Camera
 bool keys[1024];
 GLfloat sensitivity = 0.15f;
 bool mouseMoved = false;
 bool firstMouse = true;
 float4 cam_o = make_float4(0.0f, 0.0f, 0.0f, 0);
-float4 cam_d = make_float4(12.1f, -32.1f, -33.1f, 0);
+float4 cam_d = make_float4(0.0f, 1.0f, 0.0f, 0);
 float4 cam_u = make_float4(0, 0, 1, 0);
 GLfloat Yaw = 90.0f;	// horizontal inclination
 GLfloat Pitch = 0.0f; // vertikal inclination
@@ -179,7 +177,6 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 }
 
 
-
 __device__ float getDepth(Ray r, mesh2 *mesh, int32_t face)
 {
 	float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[face]], mesh->n_y[mesh->f_node_a[face]], mesh->n_z[mesh->f_node_a[face]], 0);
@@ -196,7 +193,7 @@ __device__ RGB visualizeDepth(Ray r, mesh2 *mesh, int32_t start, int depth)
 	traverse_ray(mesh, r, start, firsthit, depth);
 	float d2 = getDepth(r, mesh, firsthit.face); // gets depth value
 
-	RGB rd;
+	RGB rd(0);
 	if (firsthit.wall == true) { rd.x = 0.5; rd.y = 0.8; rd.z = 0.1; }
 	if (firsthit.constrained == true) { rd.x = 0.1; rd.y = 0.1; rd.z = d2; }
 	return rd; 
@@ -315,6 +312,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 		if (firsthit.refl_t == SPEC)
 		{
 			// compute reflected ray direction according to Snell's law
+			// d = reflect(ray.d, n);
 			d = ray.d - 2.0f * n * Dot(n, ray.d);
 			// offset origin next path segment to prevent self intersection
 			x += nl * 0.01f;
@@ -418,22 +416,18 @@ void render()
 		{
 			// mouse has moved, reset accumulation buffer
 			frames = 0; 
-			cudaMemset(accumulatebuffer, 1, width*height * sizeof(float3));
+			cudaMemset(accumulatebuffer, 1.0f, width*height * sizeof(float3));
 			mouseMoved = false; 
 		}
 		
 
 		cudaGraphicsMapResources(1, &_cgr, 0);
 		cudaGraphicsResourceGetMappedPointer((void**)&cr, &num_bytes,_cgr);
-
 		glClear(GL_COLOR_BUFFER_BIT);
-
 		dim3 block(8, 8, 1);
 		dim3 grid(width / block.x, height / block.y, 1);
 		renderKernel << <grid, block >> >(mesh, _start_tet, cam_o, cam_d, cam_u, accumulatebuffer, cr, WangHash(frames), frames);
 		gpuErrchk(cudaDeviceSynchronize());
-
-		//cudaGLUnmapBufferObject(vbo);
 		cudaGraphicsUnmapResources(1, &_cgr, 0);
 
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);

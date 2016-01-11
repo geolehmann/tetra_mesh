@@ -96,8 +96,8 @@ inline __device__ __host__ float clamp(float f, float a, float b)
 struct RGB
 {
 	float x, y, z;
-	__device__ RGB(double x_, double y_, double z_) { x = x_; y = y_; z = z_; }
-	__device__ RGB(float xyz0 = 0){ x = xyz0; y = xyz0; z = xyz0; }
+	__device__ RGB(double x0, double y0, double z0) { x = x0; y = y0; z = z0; }
+	__device__ RGB(float xyz0){ x = xyz0; y = xyz0; z = xyz0; }
 	__device__ RGB operator/(float b) const { return RGB(x / b, y / b, z / b); }
 	__device__ RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 	__device__ RGB operator*(const double &b) const { return RGB(x * b, y * b, z * b); }
