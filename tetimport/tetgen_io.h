@@ -1,4 +1,4 @@
-/*
+ï»¿/*
 *  tetrahedra-based raytracer
 *  Copyright (C) 2015  Christian Lehmann
 *
@@ -24,9 +24,7 @@
 
 #include "Math.h"
 
-__managed__ int32_t _start_tet = 0;
-
-#define inf 1e20
+__managed__ int32_t _start_tet = 0; // index of tetrahedra containng starting point
 
 struct node
 {
@@ -93,7 +91,7 @@ void tetrahedra_mesh::load_tet_ele(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				tetnum = ints.at(0); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				tetrahedras.resize(tetnum, tet1); //Tetrahedra-Deque füllen
+				tetrahedras.resize(tetnum, tet1); //Tetrahedra-Deque fÃ¼llen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -157,7 +155,7 @@ void tetrahedra_mesh::load_tet_node(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				nodenum = int(ints.at(0)); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				nodes.resize(nodenum, nd1); //Tetrahedra-Deque füllen
+				nodes.resize(nodenum, nd1); //Tetrahedra-Deque fÃ¼llen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -191,7 +189,7 @@ void tetrahedra_mesh::load_tet_face(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				facenum = int(ints.at(0)); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				faces.resize(facenum, fc1); //Tetrahedra-Deque füllen
+				faces.resize(facenum, fc1); //Tetrahedra-Deque fÃ¼llen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -231,7 +229,7 @@ void tetrahedra_mesh::load_tet_edge(std::string filename)
 			if (num == 0) //Erste Zeile
 			{
 				edgenum = int(ints.at(0)); //In erster Zeile der .ele-Datei ist Anzahl der Tetraheder abgelegt
-				edges.resize(edgenum, ed1); //Tetrahedra-Deque füllen
+				edges.resize(edgenum, ed1); //Tetrahedra-Deque fÃ¼llen
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
@@ -279,25 +277,36 @@ void tetrahedra_mesh::load_tet_t2f(std::string filename)
 //--------------------------------------------------------------------------------------------------------------------------------------
 
 
-
-
 __device__ bool IsPointInTetrahedron(float4 v1, float4 v2, float4 v3, float4 v4, float4 p)
 {
-	return SameSide(v1, v2, v3, v4, p) &&
+		// https://stackoverflow.com/questions/25179693/how-to-check-whether-the-point-is-in-the-tetrahedron-or-not/25180158#25180158
+		return SameSide(v1, v2, v3, v4, p) &&
 		SameSide(v2, v3, v4, v1, p) &&
 		SameSide(v3, v4, v1, v2, p) &&
 		SameSide(v4, v1, v2, v3, p);
 }
 
+__device__ bool IsPointInThisTet(mesh2* mesh, float4 v, int32_t tet)
+{
+	float4 nodes[4] = {
+		make_float4(mesh->n_x[mesh->t_nindex1[tet]], mesh->n_y[mesh->t_nindex1[tet]], mesh->n_z[mesh->t_nindex1[tet]], 0),
+		make_float4(mesh->n_x[mesh->t_nindex2[tet]], mesh->n_y[mesh->t_nindex2[tet]], mesh->n_z[mesh->t_nindex2[tet]], 0),
+		make_float4(mesh->n_x[mesh->t_nindex3[tet]], mesh->n_y[mesh->t_nindex3[tet]], mesh->n_z[mesh->t_nindex3[tet]], 0),
+		make_float4(mesh->n_x[mesh->t_nindex4[tet]], mesh->n_y[mesh->t_nindex4[tet]], mesh->n_z[mesh->t_nindex4[tet]], 0) };
+	if (IsPointInTetrahedron(nodes[0], nodes[1], nodes[2], nodes[3], v) == true) return true;
+	else return false;
+}
+
 __global__ void GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 {
 		int i = (blockIdx.x + blockIdx.y * gridDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
-
-		float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
-		float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
-		float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
-		float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
-		if (i<mesh->tetnum) if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet=i;
+		if (i < mesh->tetnum) {
+			float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
+			float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
+			float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
+			float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
+			if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet = i;
+		}
 
 }
 
@@ -328,98 +337,98 @@ void CheckOutOfBBox(BBox* boundingbox, float4 &p)
 	if (boundingbox->max.z - 0.2 > p.z)  p.z = boundingbox->max.z;
 }
 
-
 __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
 	face = 0;
 	tet = 0;
 
 	// http://realtimecollisiondetection.net/blog/?p=13
+	// and https://github.com/JKolios/RayTetra/blob/master/RayTetra/RayTetraSTP0.cl
 
 	// translate Ray to origin and vertices same as ray
-	ray_d = ray_o + (ray_d * 1000);
+	float4 q = ray_d;
 
-	float4 q = ray_d - ray_o;
+	float4 v0 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
+	float4 v1 = make_float4(nodes[1].x, nodes[1].y, nodes[1].z, 0); // B
+	float4 v2 = make_float4(nodes[2].x, nodes[2].y, nodes[2].z, 0); // C
+	float4 v3 = make_float4(nodes[3].x, nodes[3].y, nodes[3].z, 0); // D
 
-	float4 v1 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
-	float4 v2 = make_float4(nodes[1].x, nodes[1].y, nodes[1].z, 0); // B
-	float4 v3 = make_float4(nodes[2].x, nodes[2].y, nodes[2].z, 0); // C
-	float4 v4 = make_float4(nodes[3].x, nodes[3].y, nodes[3].z, 0); // D
+	float4 p0 = v0 - ray_o;
+	float4 p1 = v1 - ray_o;
+	float4 p2 = v2 - ray_o;
+	float4 p3 = v3 - ray_o;
 
-	float4 p0 = v1 - ray_o;
-	float4 p1 = v2 - ray_o;
-	float4 p2 = v3 - ray_o;
-	float4 p3 = v4 - ray_o;
+	double QAB = ScTP(q, p0, p1); // A B
+	double QBC = ScTP(q, p1, p2); // B C
+	double QAC = ScTP(q, p0, p2); // A C
+	double QAD = ScTP(q, p0, p3); // A D
+	double QBD = ScTP(q, p1, p3); // B D
+	double QCD = ScTP(q, p2, p3); // C D
 
-	float u_3 = ScTP(q, p0, p1);
-	float v_3 = ScTP(q, p1, p2);
-	float w_3 = ScTP(q, p2, p0);
+	double sQAB = signf(QAB); // A B
+	double sQBC = signf(QBC); // B C
+	double sQAC = signf(QAC); // A C
+	double sQAD = signf(QAD); // A D
+	double sQBD = signf(QBD); // B D
+	double sQCD = signf(QCD); // C D
 
-	float u_2 = ScTP(q, p1, p0);
-	float v_2 = ScTP(q, p0, p3);
-	float w_2 = ScTP(q, p3, p1);
-
-	float u_1 = ScTP(q, p2, p3);
-	float v_1 = ScTP(q, p3, p0);
-	float w_1 = ScTP(q, p0, p2);
-
-	float u_0 = ScTP(q, p3, p2);
-	float v_0 = ScTP(q, p2, p1);
-	float w_0 = ScTP(q, p1, p3);
-
-	// ScTP funktioniert auch mit float4.
 	// ABC
-	if (lface != findex[3]) { if (signf(u_3) == signf(v_3) && signf(v_3) == signf(w_3)) { face = findex[3]; tet = adjtet[3]; } }
+	if (sQAB != 0 && sQAC !=0 && sQBC != 0) 
+	{ 
+		if (sQAB < 0 && sQAC > 0 && sQBC < 0) { face = findex[3]; tet = adjtet[3]; } // exit face
+	}
 	// BAD
-	if (lface != findex[2]) { if (signf(u_2) == signf(v_2) && signf(v_2) == signf(w_2)) { face = findex[2]; tet = adjtet[2]; } }
+	if (sQAB != 0 && sQAD != 0 && sQBD != 0)
+	{
+		if (sQAB > 0 && sQAD < 0 && sQBD > 0) { face = findex[2]; tet = adjtet[2]; } // exit face
+	}
 	// CDA
-	if (lface != findex[1]) { if (signf(u_1) == signf(v_1) && signf(v_1) == signf(w_1)) { face = findex[1]; tet = adjtet[1]; } }
+	if (sQAD != 0 && sQAC != 0 && sQCD != 0)
+	{
+		if (sQAD > 0 && sQAC < 0 && sQCD < 0) { face = findex[1]; tet = adjtet[1]; } // exit face
+	}
 	// DCB
-	if (lface != findex[0]) { if (signf(u_0) == signf(v_0) && signf(v_0) == signf(w_0)) { face = findex[0]; tet = adjtet[0]; } }
+	if (sQBC != 0 && sQBD != 0 && sQCD != 0)
+	{
+		if (sQBC > 0 && sQBD < 0 && sQCD > 0) { face = findex[0]; tet = adjtet[0]; } // exit face
+	}
 	// No face hit
 	// if (face == 0 && tet == 0) { printf("Error! No exit tet found. \n"); }
 }
 
-__device__ void traverse_ray(mesh2 *mesh, Ray ray, int32_t start, rayhit &d, int &depth)
+
+__device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t start, rayhit &d)
 {
-	depth = 0;
-	int32_t idx = start;
+	int32_t current_tet = start;
 	int32_t nexttet, nextface, lastface = 0;
-	while (1)
+	bool hitfound = false;
+
+	for (d.depth = 0; d.depth < 80; d.depth++)
 	{
-		int32_t findex[4] = { mesh->t_findex1[idx], mesh->t_findex2[idx], mesh->t_findex3[idx], mesh->t_findex4[idx] };
-		int32_t adjtets[4] = { mesh->t_adjtet1[idx], mesh->t_adjtet2[idx], mesh->t_adjtet3[idx], mesh->t_adjtet4[idx] };
-		float4 nodes[4] = {
-			make_float4(mesh->n_x[mesh->t_nindex1[idx]], mesh->n_y[mesh->t_nindex1[idx]], mesh->n_z[mesh->t_nindex1[idx]], 0),
-			make_float4(mesh->n_x[mesh->t_nindex2[idx]], mesh->n_y[mesh->t_nindex2[idx]], mesh->n_z[mesh->t_nindex2[idx]], 0),
-			make_float4(mesh->n_x[mesh->t_nindex3[idx]], mesh->n_y[mesh->t_nindex3[idx]], mesh->n_z[mesh->t_nindex3[idx]], 0),
-			make_float4(mesh->n_x[mesh->t_nindex4[idx]], mesh->n_y[mesh->t_nindex4[idx]], mesh->n_z[mesh->t_nindex4[idx]], 0) };
-
-
-		GetExitTet(ray.o, ray.d, nodes, findex, adjtets, lastface, nextface, nexttet);
-
-		/*if (nexttet == 0 || nextface == 0)
+		if (!hitfound)
 		{
-			d.wall = true;
-			d.face = lastface;
-			break;
-		}*/
-		depth++;
+			int32_t findex[4] = { mesh->t_findex1[current_tet], mesh->t_findex2[current_tet], mesh->t_findex3[current_tet], mesh->t_findex4[current_tet] };
+			int32_t adjtets[4] = { mesh->t_adjtet1[current_tet], mesh->t_adjtet2[current_tet], mesh->t_adjtet3[current_tet], mesh->t_adjtet4[current_tet] };
+			float4 nodes[4] = {
+				make_float4(mesh->n_x[mesh->t_nindex1[current_tet]], mesh->n_y[mesh->t_nindex1[current_tet]], mesh->n_z[mesh->t_nindex1[current_tet]], 0),
+				make_float4(mesh->n_x[mesh->t_nindex2[current_tet]], mesh->n_y[mesh->t_nindex2[current_tet]], mesh->n_z[mesh->t_nindex2[current_tet]], 0),
+				make_float4(mesh->n_x[mesh->t_nindex3[current_tet]], mesh->n_y[mesh->t_nindex3[current_tet]], mesh->n_z[mesh->t_nindex3[current_tet]], 0),
+				make_float4(mesh->n_x[mesh->t_nindex4[current_tet]], mesh->n_y[mesh->t_nindex4[current_tet]], mesh->n_z[mesh->t_nindex4[current_tet]], 0) };
 
-		if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = nexttet; break; }
-		if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = nexttet; break; }
-		if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = idx; break; } // when adjacent tetrahedra is -1, ray stops
-		lastface = nextface;
-		idx = nexttet;
-		if (depth > 80) // vorher 80
-		{
-			//avoid infinite loops
-			d.wall = true;
-			d.face = lastface;
-			d.tet = idx;
-			break;
+			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet);
+			//if (nextface == 0 && nexttet == 0) if (d.depth < 2) { printf("Error! No exit tet found. \n"); }
+
+			if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
+			if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
+			if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // when adjacent tetrahedra is -1, ray stops
+			lastface = nextface;
+			current_tet = nexttet;
 		}
 	}
+	if (!hitfound)
+	{
+		d.dark = true;
+		d.face = nextface;
+		d.tet = current_tet;
+	}
 }
-
-

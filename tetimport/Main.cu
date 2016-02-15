@@ -15,6 +15,7 @@
 
 #define GLEW_STATIC
 #include "tetgen_io.h"
+#include "Camera.h"
 #include "cuPrintf.cuh"
 #include "device_launch_parameters.h"
 #include "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\extras\CUPTI\include\GL\glew.h"
@@ -23,31 +24,33 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
-const int width = 640, height=480, spp = 1;
-float3* cr;
+#define spp 1
+#define gamma 1.2f
+#define MAX_DEPTH 3
+#define width 1024	
+#define height 768
+
+float3* finalimage;
 float3* accumulatebuffer;
-uint32_t frames = 0;
-__device__ float gamma = 1.5f;
-__device__ float fov = 40.0f;
+int32_t frameNumber = 0;
+bool bufferReset = false;
+float deltaTime, lastFrame;
 BBox box;
 GLuint vbo;
 mesh2 *mesh;
-#define MAX_DEPTH 3
 
 // Camera
-bool keys[1024];
-GLfloat sensitivity = 0.15f;
-bool mouseMoved = false;
-bool firstMouse = true;
-float4 cam_o = make_float4(0.0f, 0.0f, 0.0f, 0);
-float4 cam_d = make_float4(0.0f, 1.0f, 0.0f, 0);
-float4 cam_u = make_float4(0, 0, 1, 0);
-GLfloat Yaw = 90.0f;	// horizontal inclination
-GLfloat Pitch = 0.0f; // vertikal inclination
-GLfloat lastX = width / 2.0; //screen center
-GLfloat lastY = height / 2.0;
-GLfloat deltaTime = 0.0f;	// Time between current frame and last frame
-GLfloat lastFrame = 0.0f;
+InteractiveCamera* interactiveCamera = NULL;
+Camera* hostRendercam = NULL;
+int mouse_old_x, mouse_old_y;
+int mouse_buttons = 0;
+bool buttonActive = false;
+float rotate_x = 0.0, rotate_y = 0.0;
+float translate_z = -30.0;
+int lastX = width / 2, lastY = height / 2;
+int theButtonState = 0;
+int theModifierState = 0;
+float scalefactor = 1.2f;
 
 union Color  // 4 bytes = 4 chars = 1 float
 {
@@ -79,146 +82,155 @@ unsigned int WangHash(unsigned int a) {
 
 static void error_callback(int error, const char* description)
 {
+	// GLFW error callback
 	fputs(description, stderr);
 }
-
 
 void updateCamPos()
 {
 	// check if current pos is still inside tetrahedralization
-	CheckOutOfBBox(&box, cam_o);
-	//look for new tetrahedra...
+	CheckOutOfBBox(&box, hostRendercam->position);
+	// look for new tetrahedra...
 	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
-	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
+	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, hostRendercam->position);
 	gpuErrchk(cudaDeviceSynchronize());
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	// first value sets velocity
-	GLfloat cameraSpeed = 0.5f * deltaTime;
-	if (key >= 0 && key < 1024)
-	{
-		if (action == GLFW_PRESS)
-		{
-			keys[key] = true;
-		}
-		else if (action == GLFW_RELEASE)
-		{
-			keys[key] = false;
-		}
+	int dist = 1.0f;
 
-	}
+	if (action == GLFW_PRESS) buttonActive = true;
+	if (action == GLFW_RELEASE) buttonActive = false;
+
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 	{
 		glfwSetWindowShouldClose(window, GL_TRUE);
 	}
-		
-	if (keys[GLFW_KEY_A])
+	if (key == GLFW_KEY_A && buttonActive)
 	{
-		updateCamPos();
-		mouseMoved = true;
-		cam_o -= normalizeCPU(CrossCPU(cam_d, cam_u)) * cameraSpeed;
+		interactiveCamera->strafe(-dist); updateCamPos();
 	}
-	if (keys[GLFW_KEY_D])
+	if (key == GLFW_KEY_D && buttonActive)
 	{
-		updateCamPos();
-		mouseMoved = true;
-		cam_o += normalizeCPU(CrossCPU(cam_d, cam_u)) * cameraSpeed;
+		interactiveCamera->strafe(dist); updateCamPos();
 	}
-	if (keys[GLFW_KEY_W])
+	if (key == GLFW_KEY_W && buttonActive)
 	{
-		updateCamPos();
-		mouseMoved = true;
-		cam_o += cam_d * cameraSpeed;
+		interactiveCamera->goForward(dist); updateCamPos();
 	}
-	if (keys[GLFW_KEY_S])
+	if (key == GLFW_KEY_S && buttonActive)
 	{
-		updateCamPos();
-		mouseMoved = true;
-		cam_o -= cam_d * cameraSpeed;
+		interactiveCamera->goForward(-dist); updateCamPos();
 	}
+
+	if (key == GLFW_KEY_R && buttonActive)
+	{
+		interactiveCamera->changeAltitude(dist); updateCamPos();
+	}
+	if (key == GLFW_KEY_F && buttonActive)
+	{
+		interactiveCamera->changeAltitude(-dist); updateCamPos();
+	}
+	if (key == GLFW_KEY_G && buttonActive)
+	{
+		interactiveCamera->changeApertureDiameter(0.1);
+	}
+	if (key == GLFW_KEY_H && buttonActive)
+	{
+		interactiveCamera->changeApertureDiameter(-0.1);
+	}
+	if (key == GLFW_KEY_T && buttonActive)
+	{
+		interactiveCamera->changeFocalDistance(0.1);
+	}
+	if (key == GLFW_KEY_Z && buttonActive)
+	{
+		interactiveCamera->changeFocalDistance(-0.1);
+	}
+
+	if (key == GLFW_KEY_UP && buttonActive)
+	{
+		interactiveCamera->changePitch(0.02f);
+	}
+	if (key == GLFW_KEY_DOWN && buttonActive)
+	{
+		interactiveCamera->changePitch(-0.02f);
+	}
+	if (key == GLFW_KEY_LEFT && buttonActive)
+	{
+		interactiveCamera->changeYaw(0.02f);
+	}
+	if (key == GLFW_KEY_RIGHT && buttonActive)
+	{
+		interactiveCamera->changeYaw(-0.02f);
+	}
+
+	bufferReset = true;
 }
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) theButtonState = 0;
+	if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS) theButtonState = 1;
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) theButtonState = 2;
+}
+
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 {	
-	if (firstMouse)
-	{
+	int deltaX = lastX - xpos;
+	int deltaY = lastY - ypos;
+
+	if (deltaX != 0 || deltaY != 0) {
+
+		if (theButtonState == 0)  // Rotate
+		{
+			interactiveCamera->changeYaw(deltaX * 0.01);
+			interactiveCamera->changePitch(-deltaY * 0.01);
+		}
+		else if (theButtonState == 1) // Zoom
+		{
+			interactiveCamera->changeAltitude(-deltaY * 0.01);
+			updateCamPos();
+		}
+
+		if (theButtonState == 2) // camera move
+		{
+			interactiveCamera->changeRadius(-deltaY * 0.01);
+			updateCamPos();
+		}
+
 		lastX = xpos;
 		lastY = ypos;
-		firstMouse = false;
+		bufferReset = true;
 	}
-	GLfloat xoffset = xpos - lastX;
-	GLfloat yoffset = lastY - ypos; // Reversed since y-coordinates go from bottom to left
-	
-	lastX = xpos;
-	lastY = ypos;
-	xoffset *= sensitivity;
-	yoffset *= sensitivity;
-
-	Yaw += yoffset; //geändert - vorher y/x vertauscht
-	Pitch += xoffset;
-
-	// Make sure that when pitch is out of bounds, screen doesn't get flipped
-	if (Pitch > 89.0f)
-		Pitch = 89.0f;
-	if (Pitch < -89.0f)
-		Pitch = -89.0f;
-
-	float4 front;
-	front.x = cos(radian(Yaw)) * cos(radian(Pitch));
-	front.y = sin(radian(Pitch));
-	front.z = sin(radian(Yaw)) * cos(radian(Pitch));
-	cam_d = normalizeCPU(front);
-
-	mouseMoved = true;
 }
 
-
-__device__ float getDepth(Ray r, mesh2 *mesh, int32_t face)
-{
-	float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[face]], mesh->n_y[mesh->f_node_a[face]], mesh->n_z[mesh->f_node_a[face]], 0);
-	float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[face]], mesh->n_y[mesh->f_node_b[face]], mesh->n_z[mesh->f_node_b[face]], 0);
-	float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[face]], mesh->n_y[mesh->f_node_c[face]], mesh->n_z[mesh->f_node_c[face]], 0);
-	float c = abs(intersect_dist(r, a1, a2, a3));
-	float new_value = ((c - 0.0f) / (100.0f - 0.0f)) * (1.0f - 0.0f) + 0.0f; // assume max depth of 100, color conversion to 0-1 range
-	return new_value;
-}
-
-__device__ RGB visualizeDepth(Ray r, mesh2 *mesh, int32_t start, int depth)
-{
-	rayhit firsthit;
-	traverse_ray(mesh, r, start, firsthit, depth);
-	float d2 = getDepth(r, mesh, firsthit.face); // gets depth value
-
-	RGB rd(0);
-	if (firsthit.wall == true) { rd.x = 0.5; rd.y = 0.8; rd.z = 0.1; }
-	if (firsthit.constrained == true) { rd.x = 0.1; rd.y = 0.1; rd.z = d2; }
-	return rd; 
-}
-
-
-__device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* randState)
+__device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, curandState* randState)
 {
 	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 0.0f);	// colour mask
 	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
+	float4 originInWorldSpace = ray.o;
+	float4 rayInWorldSpace = ray.d;
+	int32_t newstart = start;
 
 	for (int depth = 0; depth < MAX_DEPTH; depth++)
 	{
-		float4 f;  // primitive colour
-		float4 emit; // primitive emission colour
+		float4 f = make_float4(0, 0, 0, 0);  // primitive colour
+		float4 emit = make_float4(0, 0, 0, 0); // primitive emission colour
 		float4 x; // intersection point
 		float4 n; // normal
 		float4 nl; // oriented normal
-		float4 d; // ray direction of next path segment
-
+		float4 dw; // ray direction of next path segment
+		float4 pointHitInWorldSpace;
+		float3 rayorig = make_float3(originInWorldSpace.x, originInWorldSpace.y, originInWorldSpace.z);
+		float3 raydir = make_float3(rayInWorldSpace.x, rayInWorldSpace.y, rayInWorldSpace.z);
 
 		rayhit firsthit;
-		int tetra_depth;
-		traverse_ray(mesh, ray, start, firsthit, tetra_depth);
-
+		traverse_ray(mesh, originInWorldSpace, rayInWorldSpace, newstart, firsthit);
 		// set new starting tetrahedra and ray origin
 		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
 		float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
@@ -226,38 +238,109 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 		// get intersection distance
 		float t = intersect_dist(ray, a1, a2, a3);
 
-		x = ray.o + ray.d*t;  // intersection point
-		n = normalize(getTriangleNormal(a1, a2, a3));  // normal 
-		nl = Dot(n, ray.d) < 0 ? n : n * -1;  // correctly oriented normal
-		f = make_float4(0.9f, 0.4f, 0.1f, 0.0f);  // triangle colour
-		emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+		x = originInWorldSpace + rayInWorldSpace * t;
+		n = normalize(getTriangleNormal(a1, a2, a3));
+		nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;  // correctly oriented normal
 
-		if (firsthit.face >= 100 && firsthit.face <=200) emit = make_float4(30.03f, 30.03f, 30.03f, 0.0f);
+		if (firsthit.constrained == true) { emit = make_float4(6.0f, 4.0f, 1.0f, 0.0f); f = make_float4(0.5f, 0.3f, 0.7f, 0.0f); }
+		if (firsthit.wall == true) { emit = make_float4(0.1f, 0.1f, 0.1f, 0.0f); f = make_float4(0.6f, 0.5f, 0.4f, 0.0f); }
+		if (firsthit.dark == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
 
 		accucolor += (mask * emit);
 
 		firsthit.refl_t = DIFF;
 
-		// ideal refraction (based on smallpt code by Kevin Beason)
-		if (firsthit.refl_t == REFR)
-		{
+		// basic material system, all parameters are hard-coded (such as phong exponent, index of refraction)
+
+		// diffuse material, based on smallpt by Kevin Beason 
+		if (firsthit.refl_t == DIFF){
+
+			// pick two random numbers
+			float phi = 2 * PI * curand_uniform(randState);
+			float r2 = curand_uniform(randState);
+			float r2s = sqrtf(r2);
+
+			// compute orthonormal coordinate frame uvw with hitpoint as origin 
+			float4 w = nl; w = normalize(w);
+			float4 u = Cross((fabs(w.x) > .1 ? make_float4(0, 1, 0, 0) : make_float4(1, 0, 0, 0)), w); u = normalize(u);
+			float4 v = Cross(w, u);
+
+			// compute cosine weighted random ray direction on hemisphere 
+			dw = u*cosf(phi)*r2s + v*sinf(phi)*r2s + w*sqrtf(1 - r2);
+			dw = normalize(dw);
+
+			// offset origin next path segment to prevent self intersection
+			pointHitInWorldSpace = x +w * 0.01;  // scene size dependent
+
+			// multiply mask with colour of object
+			mask *= f;
+		}
+
+		// Phong metal material from "Realistic Ray Tracing", P. Shirley
+		if (firsthit.refl_t == METAL){
+
+			// compute random perturbation of ideal reflection vector
+			// the higher the phong exponent, the closer the perturbed vector is to the ideal reflection direction
+			float phi = 2 * PI * curand_uniform(randState);
+			float r2 = curand_uniform(randState);
+			float phongexponent = 20;
+			float cosTheta = powf(1 - r2, 1.0f / (phongexponent + 1));
+			float sinTheta = sqrtf(1 - cosTheta * cosTheta);
+
+			// create orthonormal basis uvw around reflection vector with hitpoint as origin 
+			// w is ray direction for ideal reflection
+			float4 w = rayInWorldSpace - n * 2.0f * Dot(n, rayInWorldSpace); w = normalize(w);
+			float4 u = Cross((fabs(w.x) > .1 ? make_float4(0, 1, 0, 0) : make_float4(1, 0, 0, 0)), w); u = normalize(u);
+			float4 v = Cross(w, u); // v is normalised by default
+
+			// compute cosine weighted random ray direction on hemisphere 
+			dw = u * cosf(phi) * sinTheta + v * sinf(phi) * sinTheta + w * cosTheta;
+			dw = normalize(dw);
+
+			// offset origin next path segment to prevent self intersection
+			pointHitInWorldSpace = x + w * 0.01;  // scene size dependent
+
+			// multiply mask with colour of object
+			mask *= f;
+		}
+
+		// specular material (perfect mirror)
+		if (firsthit.refl_t == SPEC){
+
+			// compute reflected ray direction according to Snell's law
+			dw = rayInWorldSpace - n * 2.0f * Dot(n, rayInWorldSpace);
+
+			// offset origin next path segment to prevent self intersection
+			pointHitInWorldSpace = x + nl * 0.01;   // scene size dependent
+
+			// multiply mask with colour of object
+			mask *= f;
+		}
+
+		// perfectly refractive material (glass, water)
+		if (firsthit.refl_t == REFR){
 
 			bool into = Dot(n, nl) > 0; // is ray entering or leaving refractive material?
 			float nc = 1.0f;  // Index of Refraction air
 			float nt = 1.5f;  // Index of Refraction glass/water
 			float nnt = into ? nc / nt : nt / nc;  // IOR ratio of refractive materials
-			float ddn = Dot(ray.d, nl);
+			float ddn = Dot(rayInWorldSpace, nl);
 			float cos2t = 1.0f - nnt*nnt * (1.f - ddn*ddn);
 
 			if (cos2t < 0.0f) // total internal reflection 
 			{
-				d = reflect(ray.d, n); //d = r.dir - 2.0f * n * dot(n, r.dir);
-				x += nl * 0.01f;
+				dw = rayInWorldSpace;
+				dw -= n * 2.0f * Dot(n, rayInWorldSpace);
+
+				// offset origin next path segment to prevent self intersection
+				pointHitInWorldSpace = x + nl * 0.01; // scene size dependent
 			}
 			else // cos2t > 0
 			{
 				// compute direction of transmission ray
-				float4 tdir = normalize(ray.d * nnt - n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t))));
+				float4 tdir = rayInWorldSpace * nnt;
+				tdir -= n * ((into ? 1 : -1) * (ddn*nnt + sqrtf(cos2t)));
+				tdir = normalize(tdir);
 
 				float R0 = (nt - nc)*(nt - nc) / (nt + nc)*(nt + nc);
 				float c = 1.f - (into ? -ddn : Dot(tdir, n));
@@ -271,58 +354,24 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 				if (curand_uniform(randState) < 0.25) // reflection ray
 				{
 					mask *= RP;
-					d = reflect(ray.d, n);
-					x += nl * 0.02f;
+					dw = rayInWorldSpace;
+					dw -= n * 2.0f * Dot(n, rayInWorldSpace);
+
+					pointHitInWorldSpace = x + nl * 0.01; // scene size dependent
 				}
 				else // transmission ray
 				{
 					mask *= TP;
-					d = tdir; //r = Ray(x, tdir); 
-					x += nl * 0.0005f; // epsilon must be small to avoid artefacts
+					dw = tdir; //r = Ray(x, tdir); 
+					pointHitInWorldSpace = x + nl * 0.001f; // epsilon must be small to avoid artefacts
 				}
 			}
 		}
 
-
-		// ideal diffuse reflection (see "Realistic Ray Tracing", P. Shirley)
-		if (firsthit.refl_t == DIFF)
-		{
-
-			// create 2 random numbers
-			float r1 = 2 * PI * curand_uniform(randState);
-			float r2 = curand_uniform(randState);
-			float r2s = sqrtf(r2);
-
-			// compute orthonormal coordinate frame uvw with hitpoint as origin 
-			float4 w = nl;
-			float4 u = normalize(Cross((fabs(w.x) > .1 ? make_float4(0, 1, 0, 0) : make_float4(1, 0, 0, 0)), w));
-			float4 v = Cross(w, u);
-
-			// compute cosine weighted random ray direction on hemisphere 
-			d = normalize(u*cos(r1)*r2s + v*sin(r1)*r2s + w*sqrtf(1 - r2));
-
-			// offset origin next path segment to prevent self intersection
-			x += nl * 0.03;
-
-			// multiply mask with colour of object
-			mask *= f;
-		}
-
-
-		if (firsthit.refl_t == SPEC)
-		{
-			// compute reflected ray direction according to Snell's law
-			// d = reflect(ray.d, n);
-			d = ray.d - 2.0f * n * Dot(n, ray.d);
-			// offset origin next path segment to prevent self intersection
-			x += nl * 0.01f;
-			// multiply mask with colour of object
-			mask *= f;
-		}
-
-		ray.o = x;
-		ray.d = d; // new ray direction
-		start = firsthit.tet; // new tet origin
+		// set up origin and direction of next path segment
+		originInWorldSpace = pointHitInWorldSpace;
+		rayInWorldSpace = dw;
+		newstart = firsthit.tet; // new tet origin
 	}
 	// add radiance up to a certain ray depth
 	// return accumulated ray colour after all bounces are computed
@@ -330,7 +379,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t &start, Ray &ray, curandState* rand
 }
 
 
-__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4 cam_d, float4 cam_u, float3 *accumbuffer, float3 *c, unsigned int hashedframenumber, int framenumber)
+__global__ void renderKernel(mesh2 *tetmesh, int32_t start, float3 *accumbuffer, float3 *c, unsigned int hashedframenumber, unsigned int framenumber, float4 position, float4 view, float4 up, float fovx, float fovy, float focalDistance, float apertureRadius)
 {
 	unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
 	unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -340,19 +389,50 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float4 cam_o, float4
 	curandState randState;
 	curand_init(hashedframenumber + threadId, 0, 0, &randState);
 
-	Ray cam(cam_o, cam_d);
-	float4 cx = make_float4(width * .5135 / height, 0.0f, 0.0f, 0.0f);  // ray direction offset along X-axis 
-	float4 cy = normalize(Cross(cx, cam.d)) * .5135; // ray dir offset along Y-axis, .5135 is FOV angle
+	int pixelx = x; // pixel x-coordinate on screen
+	int pixely = height - y - 1; // pixel y-coordintate on screen
+	float4 rendercampos = make_float4(position.x, position.y, position.z, 0);
+	RGB finalcol(0);
 
-	RGB pixelcol(0);
 	for (int s = 0; s < spp; s++)
 	{
-		float4 d = cx*((.25 + x) / width - .5) + cy*((.25 + y) / height - .5) + cam.d;
-		d = normalize(d);
-		pixelcol += radiance(tetmesh, start, Ray(cam.o + d * 40, d), &randState)*(1. / spp);
+		float4 rendercamview = make_float4(view.x, view.y, view.z, 0); rendercamview = normalize(rendercamview); // view is already supposed to be normalized, but normalize it explicitly just in case.
+		float4 rendercamup = make_float4(up.x, up.y, up.z, 0); rendercamup = normalize(rendercamup);
+		float4 horizontalAxis = Cross(rendercamview, rendercamup); horizontalAxis = normalize(horizontalAxis); // Important to normalize!
+		float4 verticalAxis = Cross(horizontalAxis, rendercamview); verticalAxis = normalize(verticalAxis); // verticalAxis is normalized by default, but normalize it explicitly just for good measure.
+		float4 middle = rendercampos + rendercamview;
+		float4 horizontal = horizontalAxis * tanf(fovx * 0.5 * (PI / 180)); // Now treating FOV as the full FOV, not half, so I multiplied it by 0.5. I also normzlized A and B, so there's no need to divide by the length of A or B anymore. Also normalized view and removed lengthOfView. Also removed the cast to float.
+		float4 vertical = verticalAxis * tanf(-fovy * 0.5 * (PI / 180)); // Now treating FOV as the full FOV, not half, so I multiplied it by 0.5. I also normzlized A and B, so there's no need to divide by the length of A or B anymore. Also normalized view and removed lengthOfView. Also removed the cast to float.
+		float jitterValueX = curand_uniform(&randState) - 0.5;
+		float jitterValueY = curand_uniform(&randState) - 0.5;
+		float sx = (jitterValueX + pixelx) / (width - 1);
+		float sy = (jitterValueY + pixely) / (height - 1);
+		float4 pointOnPlaneOneUnitAwayFromEye = middle + (horizontal * ((2 * sx) - 1)) + (vertical * ((2 * sy) - 1));
+		float4 pointOnImagePlane = rendercampos + ((pointOnPlaneOneUnitAwayFromEye - rendercampos) * focalDistance); // Important for depth of field!		
+		float4 aperturePoint;
+		if (apertureRadius > 0.00001)
+		{ 
+			float random1 = curand_uniform(&randState);
+			float random2 = curand_uniform(&randState);
+			float angle = 2 * PI * random1;
+			float distance = apertureRadius * sqrtf(random2);
+			float apertureX = cos(angle) * distance;
+			float apertureY = sin(angle) * distance;
+			aperturePoint = rendercampos + (horizontalAxis * apertureX) + (verticalAxis * apertureY);
+		}
+		else { 	aperturePoint = rendercampos;	}
+
+		// calculate ray direction of next ray in path
+		float4 apertureToImagePlane = pointOnImagePlane - aperturePoint;
+		apertureToImagePlane = normalize(apertureToImagePlane); // ray direction, needs to be normalised
+		float4 rayInWorldSpace = apertureToImagePlane;
+		rayInWorldSpace = normalize(rayInWorldSpace);
+		float4 originInWorldSpace = aperturePoint;
+
+		finalcol += radiance(tetmesh, start, Ray(originInWorldSpace, rayInWorldSpace), rendercampos, &randState) * (1.0f/spp);
 	}
 
-	accumbuffer[i] += pixelcol;
+	accumbuffer[i] += finalcol;
 	float3 tempcol = accumbuffer[i] / framenumber;
 
 	Color fcolour;
@@ -372,6 +452,7 @@ void render()
 	glfwSetErrorCallback(error_callback);
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetCursorPosCallback(window, mouse_callback);
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	glewExperimental = GL_TRUE;
@@ -401,8 +482,16 @@ void render()
 
 	while (!glfwWindowShouldClose(window))
 	{
-		frames++;
-		gpuErrchk(cudaDeviceSynchronize());
+		glfwPollEvents();
+		if (bufferReset)
+		{
+			frameNumber = 0;
+			cudaMemset(accumulatebuffer, 1, width * height * sizeof(float3));
+		}
+		bufferReset = false;
+		frameNumber++;
+		interactiveCamera->buildRenderCamera(hostRendercam);
+
 		// Calculate deltatime of current frame
 		GLfloat currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
@@ -410,23 +499,16 @@ void render()
 		std::stringstream title;
 		title << "tetra_mesh (2015)   -   deltaTime: " << deltaTime*1000 << " ms. (16-36 optimal)";
 		glfwSetWindowTitle(window, title.str().c_str());
-		glfwPollEvents();
-
-		if (mouseMoved) 
-		{
-			// mouse has moved, reset accumulation buffer
-			frames = 0; 
-			cudaMemset(accumulatebuffer, 1.0f, width*height * sizeof(float3));
-			mouseMoved = false; 
-		}
 		
-
+		// CUDA interop
 		cudaGraphicsMapResources(1, &_cgr, 0);
-		cudaGraphicsResourceGetMappedPointer((void**)&cr, &num_bytes,_cgr);
+		cudaGraphicsResourceGetMappedPointer((void**)&finalimage, &num_bytes,_cgr);
 		glClear(GL_COLOR_BUFFER_BIT);
-		dim3 block(8, 8, 1);
+		dim3 block(16, 16, 1);
 		dim3 grid(width / block.x, height / block.y, 1);
-		renderKernel << <grid, block >> >(mesh, _start_tet, cam_o, cam_d, cam_u, accumulatebuffer, cr, WangHash(frames), frames);
+		renderKernel << <grid, block >> >(mesh, _start_tet, accumulatebuffer, finalimage, WangHash(frameNumber), frameNumber, 
+		hostRendercam->position, hostRendercam->view, hostRendercam->up, hostRendercam->fov.x, hostRendercam->fov.x, 
+		hostRendercam->focalDistance, hostRendercam->apertureRadius);
 		gpuErrchk(cudaDeviceSynchronize());
 		cudaGraphicsUnmapResources(1, &_cgr, 0);
 
@@ -443,7 +525,14 @@ void render()
 
 int main(int argc, char *argv[])
 {
-	cudaDeviceProp  prop;
+	delete interactiveCamera;
+	interactiveCamera = new InteractiveCamera();
+	interactiveCamera->setResolution(width, height);
+	interactiveCamera->setFOVX(45);
+	hostRendercam = new Camera();
+	interactiveCamera->buildRenderCamera(hostRendercam);
+
+	cudaDeviceProp prop;
 	int dev;
 	memset(&prop, 0, sizeof(cudaDeviceProp));
 	prop.major = 1;
@@ -451,11 +540,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("test4.1.ele");
-	tetmesh.load_tet_neigh("test4.1.neigh");
-	tetmesh.load_tet_node("test4.1.node");
-	tetmesh.load_tet_face("test4.1.face");
-	tetmesh.load_tet_t2f("test4.1.t2f");
+	tetmesh.load_tet_ele("test5.1.ele");
+	tetmesh.load_tet_neigh("test5.1.neigh");
+	tetmesh.load_tet_node("test5.1.node");
+	tetmesh.load_tet_face("test5.1.face");
+	tetmesh.load_tet_t2f("test5.1.t2f");
 
 
 	// ===========================
@@ -532,14 +621,14 @@ int main(int argc, char *argv[])
 	fprintf_s(stderr, "             MAX xyz - %f %f %f \n\n", box.max.x, box.max.y, box.max.z);
 
 	// Allocate unified memory
-	gpuErrchk(cudaMallocManaged(&cr, width * height * sizeof(float3)));
+	gpuErrchk(cudaMallocManaged(&finalimage, width * height * sizeof(float3)));
 	gpuErrchk(cudaMallocManaged(&accumulatebuffer, width * height * sizeof(float3)));
 
 	// find starting tetrahedra
 	uint32_t _dim = 2+pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
-	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, cam_o);
+	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, hostRendercam->position);
 	gpuErrchk(cudaDeviceSynchronize()); 
 
 	if (_start_tet == 0) 
