@@ -157,7 +157,7 @@ void InteractiveCamera::buildRenderCamera(Camera* renderCamera){
 
 	renderCamera->position = eyePosition;
 	renderCamera->view = viewDirection;
-	renderCamera->up = make_float4(0, 0, 1, 0);
+	renderCamera->up = make_float4(0, 1, 0, 0);
 	renderCamera->resolution = make_float2(resolution.x, resolution.y);
 	renderCamera->fov = make_float2(fov.x, fov.y);
 	renderCamera->apertureRadius = apertureRadius;

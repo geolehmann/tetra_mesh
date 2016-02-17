@@ -16,7 +16,6 @@
 #define GLEW_STATIC
 #include "tetgen_io.h"
 #include "Camera.h"
-#include "cuPrintf.cuh"
 #include "device_launch_parameters.h"
 #include "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\extras\CUPTI\include\GL\glew.h"
 #include "GLFW/glfw3.h"
@@ -32,7 +31,7 @@
 
 float3* finalimage;
 float3* accumulatebuffer;
-int32_t frameNumber = 0;
+uint32_t frameNumber = 0;
 bool bufferReset = false;
 float deltaTime, lastFrame;
 BBox box;
@@ -100,7 +99,7 @@ void updateCamPos()
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	int dist = 1.0f;
+	int dist = 3.0f;
 
 	if (action == GLFW_PRESS) buttonActive = true;
 	if (action == GLFW_RELEASE) buttonActive = false;
@@ -248,7 +247,8 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 
 		accucolor += (mask * emit);
 
-		firsthit.refl_t = DIFF;
+		if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
+		if (firsthit.wall == true) {	firsthit.refl_t = DIFF;	}
 
 		// basic material system, all parameters are hard-coded (such as phong exponent, index of refraction)
 
@@ -540,11 +540,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("test5.1.ele");
-	tetmesh.load_tet_neigh("test5.1.neigh");
-	tetmesh.load_tet_node("test5.1.node");
-	tetmesh.load_tet_face("test5.1.face");
-	tetmesh.load_tet_t2f("test5.1.t2f");
+	tetmesh.load_tet_ele("test6.1.ele");
+	tetmesh.load_tet_neigh("test6.1.neigh");
+	tetmesh.load_tet_node("test6.1.node");
+	tetmesh.load_tet_face("test6.1.face");
+	tetmesh.load_tet_t2f("test6.1.t2f");
 
 
 	// ===========================
