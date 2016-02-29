@@ -77,11 +77,11 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>..\Externals\glfw-3.1.2.bin.WIN64\include;..\Externals\glm;..\Externals\cuPrintf;..\Externals\glut\include;..\Externals\glew-1.13.0\include;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\Externals\glfw-3.1.2.bin.WIN64\include;..\Externals\glm;..\Externals;..\Externals\glut\include;..\Externals\glew-1.13.0\include;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\include;$(IncludePath)</IncludePath>
     <LibraryPath>..\Externals\glfw-3.1.2.bin.WIN64\lib-vc2013;C:\Program Files %28x86%29\NVIDIA Corporation\Cg\lib.x64;..\Externals\glew-1.13.0\lib\Release\x64;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\Externals\glfw-3.1.2.bin.WIN64\include;..\Externals\cuPrintf;..\Externals\glm;..\Externals\glut\include;..\Externals\glew-1.13.0\include;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\Externals\glfw-3.1.2.bin.WIN64\include;..\Externals;..\Externals\glm;..\Externals\glut\include;..\Externals\glew-1.13.0\include;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\include;$(IncludePath)</IncludePath>
     <LibraryPath>..\Externals\glfw-3.1.2.bin.WIN64\lib-vc2013;C:\Program Files %28x86%29\NVIDIA Corporation\Cg\lib.x64;..\Externals\glew-1.13.0\lib\Release\x64;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">

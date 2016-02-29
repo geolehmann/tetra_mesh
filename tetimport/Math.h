@@ -117,8 +117,29 @@ struct Ray
 	__device__ Ray(float4 o_, float4 d_) : o(o_), d(d_) {}
 };
 
-__device__ float intersect_dist(const Ray &ray, const float4 &a, const float4 &b, const float4 &c)
+__device__ bool nearlyzero(float a)
 {
+	if (a > 0.0 && a < 0.01) return true;
+	return false;
+}
+
+__device__ float intersect_dist(const Ray &ray, const float4 &a, const float4 &b, const float4 &c, bool &isEdge)
+{
+	float4 pq = ray.d;
+	float4 pa = a - ray.o;
+	float4 pb = b - ray.o;
+	float4 pc = c - ray.o;
+
+	float u = ScTP(pq, pc, pb);
+	float v = ScTP(pq, pa, pc);
+	float w = ScTP(pq, pb, pa);
+	float denom = 1.0f / (u + v + w);
+	u *= denom;
+	v *= denom;
+	w *= denom;
+
+	if (nearlyzero(u) || nearlyzero(w) || nearlyzero(v)) isEdge = true;
+
 	float4 e1 = b - a;
 	float4 e2 = c - a;
 	float4 q = Cross(ray.d, e2);

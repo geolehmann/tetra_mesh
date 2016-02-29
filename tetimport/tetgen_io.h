@@ -24,6 +24,9 @@
 
 #include "Math.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 __managed__ int32_t _start_tet = 0; // index of tetrahedra containng starting point
 
 struct node
@@ -416,7 +419,6 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 				make_float4(mesh->n_x[mesh->t_nindex4[current_tet]], mesh->n_y[mesh->t_nindex4[current_tet]], mesh->n_z[mesh->t_nindex4[current_tet]], 0) };
 
 			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet);
-			//if (nextface == 0 && nexttet == 0) if (d.depth < 2) { printf("Error! No exit tet found. \n"); }
 
 			if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
 			if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
@@ -431,4 +433,42 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 		d.face = nextface;
 		d.tet = current_tet;
 	}
+}
+
+//----------------------- obj parser -----------------------------------------------------------------
+
+int loadObj(std::string inputfile)
+{
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+
+	std::string err;
+	bool ret = tinyobj::LoadObj(shapes, materials, err, inputfile.c_str());
+	if (!err.empty()) {	std::cerr << err << std::endl; }
+	if (!ret) {	exit(1); }
+
+	std::cout << "# of shapes    : " << shapes.size() << std::endl;
+	std::cout << "# of materials : " << materials.size() << std::endl;
+
+	for (uint32_t i = 0; i < shapes.size(); i++) {
+		printf("shape[%ld].name = %s\n", i, shapes[i].name.c_str());
+		printf("Size of shape[%ld].indices: %ld\n", i, shapes[i].mesh.indices.size());
+		printf("Size of shape[%ld].material_ids: %ld\n", i, shapes[i].mesh.material_ids.size());
+		assert((shapes[i].mesh.indices.size() % 3) == 0);
+		for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
+			printf("  idx[%ld] = %d, %d, %d. mat_id = %d\n", f, shapes[i].mesh.indices[3 * f + 0], shapes[i].mesh.indices[3 * f + 1], shapes[i].mesh.indices[3 * f + 2], shapes[i].mesh.material_ids[f]);
+		}
+
+		printf("shape[%ld].vertices: %ld\n", i, shapes[i].mesh.positions.size());
+		assert((shapes[i].mesh.positions.size() % 3) == 0);
+		for (size_t v = 0; v < shapes[i].mesh.positions.size() / 3; v++) {
+			printf("  v[%ld] = (%f, %f, %f)\n", v,
+				shapes[i].mesh.positions[3 * v + 0],
+				shapes[i].mesh.positions[3 * v + 1],
+				shapes[i].mesh.positions[3 * v + 2]);
+		}
+	}
+
+
+
 }

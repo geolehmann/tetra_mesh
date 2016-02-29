@@ -24,7 +24,7 @@
 #include <curand_kernel.h>
 
 #define spp 1
-#define gamma 1.2f
+#define gamma 2.2f
 #define MAX_DEPTH 3
 #define width 1024	
 #define height 768
@@ -99,7 +99,7 @@ void updateCamPos()
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	int dist = 3.0f;
+	int dist = 5.0f;
 
 	if (action == GLFW_PRESS) buttonActive = true;
 	if (action == GLFW_RELEASE) buttonActive = false;
@@ -235,23 +235,26 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
 		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
 		// get intersection distance
-		float t = intersect_dist(ray, a1, a2, a3);
+		bool isEdge = false;
+		float t = intersect_dist(ray, a1, a2, a3, isEdge);
 
 		x = originInWorldSpace + rayInWorldSpace * t;
 		n = normalize(getTriangleNormal(a1, a2, a3));
 		nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;  // correctly oriented normal
+		// --------------------------- set triangle properties --------------------------------------------------------------------
 
-		if (firsthit.constrained == true) { emit = make_float4(6.0f, 4.0f, 1.0f, 0.0f); f = make_float4(0.5f, 0.3f, 0.7f, 0.0f); }
-		if (firsthit.wall == true) { emit = make_float4(0.1f, 0.1f, 0.1f, 0.0f); f = make_float4(0.6f, 0.5f, 0.4f, 0.0f); }
+
+		if (firsthit.constrained == true) { emit = make_float4(6.0f, 4.0f, 1.0f, 0.0f); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
+		if (firsthit.wall == true) { emit = make_float4(0.1f, 0.1f, 0.1f, 0.0f); f = make_float4(0.8f, 0.4f, 1.0f, 0.0f); }
 		if (firsthit.dark == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
 
-		accucolor += (mask * emit);
-
 		if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
-		if (firsthit.wall == true) {	firsthit.refl_t = DIFF;	}
+		if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
+		if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
 
+		
 		// basic material system, all parameters are hard-coded (such as phong exponent, index of refraction)
-
+		accucolor += (mask * emit);
 		// diffuse material, based on smallpt by Kevin Beason 
 		if (firsthit.refl_t == DIFF){
 
@@ -497,7 +500,7 @@ void render()
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 		std::stringstream title;
-		title << "tetra_mesh (2015)   -   deltaTime: " << deltaTime*1000 << " ms. (16-36 optimal)";
+		title << "tetra_mesh (2015)   -   MRay/s: " << width*height*MAX_DEPTH*0.000001/deltaTime;
 		glfwSetWindowTitle(window, title.str().c_str());
 		
 		// CUDA interop
