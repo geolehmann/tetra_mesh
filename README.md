@@ -37,6 +37,7 @@ visualize mesh - done!!
   
 Todo:   
 implement volumetric path tracing   
+Implement mesh deformation - Müller et al. (2015)   
 
 
  
