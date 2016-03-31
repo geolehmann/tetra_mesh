@@ -27,7 +27,8 @@
 typedef int int32_t;
 typedef unsigned int uint32_t;
 
-enum Refl_t { DIFF, SPEC, REFR, METAL };
+enum Refl_t { DIFF, SPEC, REFR, VOL, METAL}; 
+enum Geometry { TRIANGLE, SPHERE };
 
 // ----------------  CUDA float operations -------------------------------
 
@@ -54,7 +55,7 @@ __device__ float4 normalize(float4 &a)
 	return make_float4(a.x*f, a.y*f, a.z*f, 0);
 }
 
- __device__  float Dot(const float4 &a, const float4 &b)
+ __device__  __host__ float Dot(const float4 &a, const float4 &b)
 {
 	return  a.x * b.x + a.y * b.y + a.z * b.z;
 }
@@ -102,11 +103,11 @@ __device__ bool HasNaNs(float4 a) { return isnan(a.x) || isnan(a.y) || isnan(a.z
 struct RGB
 {
 	float x, y, z;
-	__device__ RGB(double x0, double y0, double z0) { x = x0; y = y0; z = z0; }
+	__device__ RGB(float x0, float y0, float z0) { x = x0; y = y0; z = z0; }
 	__device__ RGB(float xyz0){ x = xyz0; y = xyz0; z = xyz0; }
 	__device__ RGB operator/(const float &b) const { return RGB(x / b, y / b, z / b); }
 	__device__ RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
-	__device__ RGB operator*(const double &b) const { return RGB(x * b, y * b, z * b); }
+	__device__ RGB operator*(const float &b) const { return RGB(x * b, y * b, z * b); }
 };
 __device__ RGB operator+=(RGB &a, const RGB b) { a.x += b.x; a.y += b.y; a.z += b.z; return RGB(0); }
 __device__ float3 operator+=(float3 &a, const RGB b) { a = make_float3(a.x + b.x, a.y + b.y, a.z + b.z); return make_float3(0, 0, 0); }
@@ -147,6 +148,14 @@ __device__ float intersect_dist(const Ray &ray, const float4 &a, const float4 &b
 	float4 s = ray.o - a;
 	float4 r = Cross(s, e1);
 	return Dot(e2, r) / d;
+
+	/*float4 e1 = b - a;
+	float4 e2 = c - a;
+	float4 N = Cross(e1, e2);
+	double NdotRayDirection = Dot(N,ray.d); 
+	double d = Dot(N,a); 
+	return (Dot(N,ray.o) + d) / NdotRayDirection; */
+
 }
 
 __device__ float4 getTriangleNormal(const float4 &p1, const float4 &p2, const float4 &p3)

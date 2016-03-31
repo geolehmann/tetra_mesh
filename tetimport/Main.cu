@@ -23,9 +23,11 @@
 #include <curand.h>
 #include <curand_kernel.h>
 
+#include "Sphere.h"
+
 #define spp 1
 #define gamma 2.2f
-#define MAX_DEPTH 3
+#define MAX_DEPTH 5
 #define width 1024	
 #define height 768
 
@@ -210,13 +212,13 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, curandState* randState)
 {
-	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 0.0f);	// colour mask
+	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 1.0f);	// colour mask
 	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
 	float4 originInWorldSpace = ray.o;
 	float4 rayInWorldSpace = ray.d;
 	int32_t newstart = start;
 
-	for (int depth = 0; depth < MAX_DEPTH; depth++)
+	for (int bounces = 0; bounces < MAX_DEPTH; bounces++)
 	{
 		float4 f = make_float4(0, 0, 0, 0);  // primitive colour
 		float4 emit = make_float4(0, 0, 0, 0); // primitive emission colour
@@ -227,8 +229,11 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		float4 pointHitInWorldSpace;
 		float3 rayorig = make_float3(originInWorldSpace.x, originInWorldSpace.y, originInWorldSpace.z);
 		float3 raydir = make_float3(rayInWorldSpace.x, rayInWorldSpace.y, rayInWorldSpace.z);
-
+		double dist;
 		rayhit firsthit;
+		Geometry geom;
+
+		// ------------------------------ TRIANGLE intersection --------------------------------------------
 		traverse_ray(mesh, originInWorldSpace, rayInWorldSpace, newstart, firsthit);
 		// set new starting tetrahedra and ray origin
 		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
@@ -236,25 +241,48 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
 		// get intersection distance
 		bool isEdge = false;
-		float t = intersect_dist(ray, a1, a2, a3, isEdge);
-
-		x = originInWorldSpace + rayInWorldSpace * t;
-		n = normalize(getTriangleNormal(a1, a2, a3));
-		nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;  // correctly oriented normal
-		// --------------------------- set triangle properties --------------------------------------------------------------------
+		dist = intersect_dist(ray, a1, a2, a3, isEdge);
+		pointHitInWorldSpace = originInWorldSpace + rayInWorldSpace * dist;
 
 
-		if (firsthit.constrained == true) { emit = make_float4(6.0f, 4.0f, 1.0f, 0.0f); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
-		if (firsthit.wall == true) { emit = make_float4(0.1f, 0.1f, 0.1f, 0.0f); f = make_float4(0.8f, 0.4f, 1.0f, 0.0f); }
-		if (firsthit.dark == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
+		// ------------------------------ SPHERE intersection --------------------------------------------
+		/*float spi = sphIntersect(originInWorldSpace, rayInWorldSpace, make_float4(6, 6, 0, 0), 10);
+		if (spi > 0.0) 
+		{ 
+			geom = SPHERE; 
+			traverse_until_point(mesh, originInWorldSpace, rayInWorldSpace, newstart, originInWorldSpace + rayInWorldSpace * spi, firsthit);
+		} 	
+		else*/ { geom = TRIANGLE; }
 
-		if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
-		if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
-		if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
+		/*if (geom == SPHERE)
+		{
+			emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); 
+			f = make_float4(1.0f, 1.0f, 1.0f, 0.0f);
+			firsthit.refl_t = SPEC; 
+			x = originInWorldSpace + rayInWorldSpace * spi;
+			n= normalize((x - make_float4(6,6,0,0)));
+			nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
+		}*/
 
-		
+		if (geom == TRIANGLE)
+		{
+			x = pointHitInWorldSpace;
+			n = normalize(getTriangleNormal(a1, a2, a3));
+			nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
+
+			if (firsthit.constrained == true) { emit = make_float4(60.0f, 40.0f, 20.0f, 0.0f); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
+			if (firsthit.wall == true) { emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
+			if (firsthit.dark == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
+
+			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
+			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
+			//if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
+		}
+
 		// basic material system, all parameters are hard-coded (such as phong exponent, index of refraction)
 		accucolor += (mask * emit);
+
+
 		// diffuse material, based on smallpt by Kevin Beason 
 		if (firsthit.refl_t == DIFF){
 
@@ -543,12 +571,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("test6.1.ele");
-	tetmesh.load_tet_neigh("test6.1.neigh");
-	tetmesh.load_tet_node("test6.1.node");
-	tetmesh.load_tet_face("test6.1.face");
-	tetmesh.load_tet_t2f("test6.1.t2f");
-
+	tetmesh.load_tet_ele("cornell_spheres.1.ele");
+	tetmesh.load_tet_neigh("cornell_spheres.1.neigh");
+	tetmesh.load_tet_node("cornell_spheres.1.node");
+	tetmesh.load_tet_face("cornell_spheres.1.face");
+	tetmesh.load_tet_t2f("cornell_spheres.1.t2f");
 
 	// ===========================
 	//     mesh2

@@ -427,6 +427,12 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 			current_tet = nexttet;
 		}
 	}
+
+	// get nodes from nextface
+	//float4 na = make_float4(mesh->n_x[mesh->f_node_a[nextface]], mesh->n_y[mesh->f_node_a[nextface]], mesh->n_z[mesh->f_node_a[nextface]], 0);
+	//float4 nb = make_float4(mesh->n_x[mesh->f_node_b[nextface]], mesh->n_y[mesh->f_node_b[nextface]], mesh->n_z[mesh->f_node_b[nextface]], 0);
+	//float4 nc = make_float4(mesh->n_x[mesh->f_node_c[nextface]], mesh->n_y[mesh->f_node_c[nextface]], mesh->n_z[mesh->f_node_c[nextface]], 0);
+	
 	if (!hitfound)
 	{
 		d.dark = true;
@@ -434,6 +440,47 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 		d.tet = current_tet;
 	}
 }
+
+
+__device__ void traverse_until_point(mesh2 *mesh, float4 rayo, float4 rayd, int32_t start, float4 end, rayhit &d)
+{
+	int32_t current_tet = start;
+	int32_t nexttet, nextface, lastface = 0;
+	bool hitfound = false;
+
+	for (d.depth = 0; d.depth < 80; d.depth++)
+	{
+		if (!hitfound)
+		{
+			int32_t findex[4] = { mesh->t_findex1[current_tet], mesh->t_findex2[current_tet], mesh->t_findex3[current_tet], mesh->t_findex4[current_tet] };
+			int32_t adjtets[4] = { mesh->t_adjtet1[current_tet], mesh->t_adjtet2[current_tet], mesh->t_adjtet3[current_tet], mesh->t_adjtet4[current_tet] };
+			float4 nodes[4] = {
+				make_float4(mesh->n_x[mesh->t_nindex1[current_tet]], mesh->n_y[mesh->t_nindex1[current_tet]], mesh->n_z[mesh->t_nindex1[current_tet]], 0),
+				make_float4(mesh->n_x[mesh->t_nindex2[current_tet]], mesh->n_y[mesh->t_nindex2[current_tet]], mesh->n_z[mesh->t_nindex2[current_tet]], 0),
+				make_float4(mesh->n_x[mesh->t_nindex3[current_tet]], mesh->n_y[mesh->t_nindex3[current_tet]], mesh->n_z[mesh->t_nindex3[current_tet]], 0),
+				make_float4(mesh->n_x[mesh->t_nindex4[current_tet]], mesh->n_y[mesh->t_nindex4[current_tet]], mesh->n_z[mesh->t_nindex4[current_tet]], 0) };
+
+			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet);
+
+			if (IsPointInTetrahedron(nodes[0], nodes[1], nodes[2], nodes[3], end)) { hitfound = true;d.face = nextface; d.tet = current_tet;  }
+
+			if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
+			if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
+			if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // when adjacent tetrahedra is -1, ray stops
+			lastface = nextface;
+			current_tet = nexttet;
+		}
+	}
+
+	if (!hitfound)
+	{
+		d.dark = true;
+		d.face = nextface;
+		d.tet = current_tet;
+	}
+}
+
+
 
 //----------------------- obj parser -----------------------------------------------------------------
 

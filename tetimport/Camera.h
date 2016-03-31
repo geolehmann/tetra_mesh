@@ -58,7 +58,7 @@ public:
 
 InteractiveCamera::InteractiveCamera()
 {
-	centerPosition = make_float4(0.0f, 0.0f, 0.0f, 0);
+	centerPosition = make_float4(-330.0f, 300.0f, 250.0f, 0);
 	yaw = 0.0;
 	pitch = 0.1;
 	radius = 4;
