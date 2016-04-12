@@ -19,6 +19,12 @@ of the scene.
 
 The pathtracer code is based on the pathtracer by Samuel Lapere (https://github.com/straaljager/GPU-path-tracing-tutorial-3)
 and the smallpt pathtracer (http://kevinbeason.com/smallpt/).
+
+References:
+
+Hang Si (2015). _TetGen, a Delaunay-Based Quality Tetrahedral Mesh Generator._ ACM Trans. on Mathematical Software. 41 (2), Article 11 (February 2015), 36 pages.
+
+Lagae, A. and Dutré, P. (2008). _Accelerating Ray Tracing using Constrained Tetrahedralizations._ Computer Graphics Forum, 27: 1303–1312.
   
 **Current status (04/12/2016):**  
 
