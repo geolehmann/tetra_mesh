@@ -20,7 +20,7 @@ of the scene.
 The pathtracer code is based on the pathtracer by Samuel Lapere (https://github.com/straaljager/GPU-path-tracing-tutorial-3)
 and the smallpt pathtracer (http://kevinbeason.com/smallpt/).
   
-**Current status (02/29/2016):**  
+**Current status (04/12/2016):**  
 
 Import Tetgen files .node/.ele/.face/.edge/.neigh  - done!  
 Ray-tetrahedra intersection routine - done!  
@@ -36,8 +36,9 @@ keyboard input - done!!
 mouse input - done!!  
 support for specular/refractive/diffuse materials - done!!  
 path tracing - done!!!  
-visualize mesh - done!!   
+visualize mesh - done!!  
   
 Todo:   
+bugfixing..
 implement volumetric path tracing   
 Implement mesh deformation - Müller et al. (2015)
