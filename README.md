@@ -16,6 +16,9 @@ to quickly find the triangle intersected by a ray.
 This project aims to expand their idea by using GPGPU with Nvidia CUDA to speed up the calculations.
 The Tetgen software developed by Hang Si(http://wias-berlin.de/software/tetgen/) is used for tetrahedralization
 of the scene.  
+
+The pathtracer code is based on the pathtracer by Samuel Lapere (https://github.com/straaljager/GPU-path-tracing-tutorial-3)
+and the smallpt pathtracer (http://kevinbeason.com/smallpt/).
   
 **Current status (02/29/2016):**  
 
@@ -37,11 +40,4 @@ visualize mesh - done!!
   
 Todo:   
 implement volumetric path tracing   
-Implement mesh deformation - Müller et al. (2015)   
-
-
- 
-
-
-
-
+Implement mesh deformation - Müller et al. (2015)
