@@ -32,5 +32,11 @@
     <ClInclude Include="Sphere.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="stb_truetype.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="Util.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

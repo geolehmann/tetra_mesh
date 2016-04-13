@@ -162,7 +162,7 @@ void tetrahedra_mesh::load_tet_node(std::string filename)
 			}
 			else if (ints.size() != NULL) // restliche Zeilen
 			{
-				nodes.at((int)ints.at(0)).index = ints.at(0);
+				nodes.at((int)ints.at(0)).index = (uint32_t)ints.at(0);
 				nodes.at((int)ints.at(0)).x = ints.at(1);
 				nodes.at((int)ints.at(0)).y = ints.at(2);
 				nodes.at((int)ints.at(0)).z = ints.at(3);
@@ -289,6 +289,15 @@ __device__ bool IsPointInTetrahedron(float4 v1, float4 v2, float4 v3, float4 v4,
 		SameSide(v4, v1, v2, v3, p);
 }
 
+bool IsPointInTetrahedronCPU(float4 v1, float4 v2, float4 v3, float4 v4, float4 p)
+{
+		// https://stackoverflow.com/questions/25179693/how-to-check-whether-the-point-is-in-the-tetrahedron-or-not/25180158#25180158
+		return SameSideCPU(v1, v2, v3, v4, p) &&
+		SameSideCPU(v2, v3, v4, v1, p) &&
+		SameSideCPU(v3, v4, v1, v2, p) &&
+		SameSideCPU(v4, v1, v2, v3, p);
+}
+
 __device__ bool IsPointInThisTet(mesh2* mesh, float4 v, int32_t tet)
 {
 	float4 nodes[4] = {
@@ -300,15 +309,27 @@ __device__ bool IsPointInThisTet(mesh2* mesh, float4 v, int32_t tet)
 	else return false;
 }
 
+bool IsPointInThisTetCPU(mesh2* mesh, float4 v, int32_t tet)
+{
+	float4 nodes[4] = {
+		make_float4(mesh->n_x[mesh->t_nindex1[tet]], mesh->n_y[mesh->t_nindex1[tet]], mesh->n_z[mesh->t_nindex1[tet]], 0),
+		make_float4(mesh->n_x[mesh->t_nindex2[tet]], mesh->n_y[mesh->t_nindex2[tet]], mesh->n_z[mesh->t_nindex2[tet]], 0),
+		make_float4(mesh->n_x[mesh->t_nindex3[tet]], mesh->n_y[mesh->t_nindex3[tet]], mesh->n_z[mesh->t_nindex3[tet]], 0),
+		make_float4(mesh->n_x[mesh->t_nindex4[tet]], mesh->n_y[mesh->t_nindex4[tet]], mesh->n_z[mesh->t_nindex4[tet]], 0) };
+	if (IsPointInTetrahedronCPU(nodes[0], nodes[1], nodes[2], nodes[3], v) == true && tet != -1) return true;
+	else return false;
+}
+
 __global__ void GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 {
 		int i = (blockIdx.x + blockIdx.y * gridDim.x) * (blockDim.x * blockDim.y) + (threadIdx.y * blockDim.x) + threadIdx.x;
 		if (i < mesh->tetnum) {
-			float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
+			/*float4 v1 = make_float4(mesh->n_x[mesh->t_nindex1[i]], mesh->n_y[mesh->t_nindex1[i]], mesh->n_z[mesh->t_nindex1[i]], 0);
 			float4 v2 = make_float4(mesh->n_x[mesh->t_nindex2[i]], mesh->n_y[mesh->t_nindex2[i]], mesh->n_z[mesh->t_nindex2[i]], 0);
 			float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
 			float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
-			if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet = i;
+			if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet = i;*/
+			if (IsPointInThisTet(mesh, p, i) == true) _start_tet = i;
 		}
 
 }
@@ -330,14 +351,14 @@ BBox init_BBox(mesh2* mesh)
 	return boundingbox;
 }
 
-void CheckOutOfBBox(BBox* boundingbox, float4 &p)
+void ClampToBBox(BBox* boundingbox, float4 &p)
 {
-	if (boundingbox->min.x + 0.2 < p.x)  p.x = boundingbox->min.x;
-	if (boundingbox->max.x - 0.2 > p.x)  p.x = boundingbox->max.x;
-	if (boundingbox->min.y + 0.2 < p.y)  p.y = boundingbox->min.y;
-	if (boundingbox->max.y - 0.2 > p.y)  p.y = boundingbox->max.y;
-	if (boundingbox->min.z + 0.2 < p.z)  p.z = boundingbox->min.z;
-	if (boundingbox->max.z - 0.2 > p.z)  p.z = boundingbox->max.z;
+	if (boundingbox->min.x + 0.2 > p.x)  p.x = boundingbox->min.x;
+	if (boundingbox->max.x - 0.2 < p.x)  p.x = boundingbox->max.x;
+	if (boundingbox->min.y + 0.2 > p.y)  p.y = boundingbox->min.y;
+	if (boundingbox->max.y - 0.2 < p.y)  p.y = boundingbox->max.y;
+	if (boundingbox->min.z + 0.2 > p.z)  p.z = boundingbox->min.z;
+	if (boundingbox->max.z - 0.2 < p.z)  p.z = boundingbox->max.z;
 }
 
 __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
@@ -418,10 +439,13 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 				make_float4(mesh->n_x[mesh->t_nindex3[current_tet]], mesh->n_y[mesh->t_nindex3[current_tet]], mesh->n_z[mesh->t_nindex3[current_tet]], 0),
 				make_float4(mesh->n_x[mesh->t_nindex4[current_tet]], mesh->n_y[mesh->t_nindex4[current_tet]], mesh->n_z[mesh->t_nindex4[current_tet]], 0) };
 
+				//if (!IsPointInTetrahedron(nodes[0],nodes[1],nodes[2],nodes[3], rayo) && current_tet == start) printf("ALLLLEEERRRRTTTTTT \n");
+				//if (!IsPointInThisTet(mesh, rayo, current_tet) && current_tet == start) printf("ALLLLEEERRRRTTTTTT \n");
+
 			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet);
 
 			if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
-			if (mesh->face_is_wall[nextface] == true) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
+			if (mesh->face_is_wall[nextface] == true)		 { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
 			if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // when adjacent tetrahedra is -1, ray stops
 			lastface = nextface;
 			current_tet = nexttet;

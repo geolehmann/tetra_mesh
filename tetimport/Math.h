@@ -109,8 +109,19 @@ struct RGB
 	__device__ RGB operator+(const RGB &b) const { return RGB(x + b.x, y + b.y, z + b.z); }
 	__device__ RGB operator*(const float &b) const { return RGB(x * b, y * b, z * b); }
 };
-__device__ RGB operator+=(RGB &a, const RGB b) { a.x += b.x; a.y += b.y; a.z += b.z; return RGB(0); }
-__device__ float3 operator+=(float3 &a, const RGB b) { a = make_float3(a.x + b.x, a.y + b.y, a.z + b.z); return make_float3(0, 0, 0); }
+__device__ RGB operator+=(RGB &a, const RGB b) { a.x += b.x; a.y += b.y; a.z += b.z; return RGB(a.x,a.y,a.z); }
+__device__ float3 operator+=(float3 &a, const RGB b) { a = make_float3(a.x + b.x, a.y + b.y, a.z + b.z); return a; }
+
+__device__ RGB de_nan(RGB &a)
+{
+	// from http://psgraphics.blogspot.de/2016/04/debugging-by-sweeping-under-rug.html
+	RGB temp = a;
+	if (!(temp.x == temp.x)) temp.x = 0;
+	if (!(temp.y == temp.y)) temp.y = 0;
+	if (!(temp.z == temp.z)) temp.z = 0;
+	temp.z = 0;
+	return temp;
+}
 
 struct Ray
 {
@@ -177,6 +188,26 @@ float4 CrossCPU(const float4 &a, const float4 &b)
 					a.z * b.x - a.x * b.z,
 					a.x * b.y - a.y * b.x };
 	return cross;
+}
+
+float DotCPU(const float4 &a, const float4 &b)
+{
+	return  a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+int signfCPU(float f) 
+{
+	if (f > 0.0) return 1;
+	if (f < 0.0) return -1;
+	return 0;
+}
+
+bool SameSideCPU(const float4 &v1, const float4 &v2, const float4 &v3, const float4 &v4, const float4 &p)
+{
+	float4 normal = CrossCPU(v2 - v1, v3 - v1);
+	float dotV4 = DotCPU(normal, v4 - v1);
+	float dotP = DotCPU(normal, p - v1);
+	return signfCPU(dotV4) == signfCPU(dotP);
 }
 
 // ------------------------------- structure definitions -----------------------------

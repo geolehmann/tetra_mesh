@@ -58,9 +58,9 @@ public:
 
 InteractiveCamera::InteractiveCamera()
 {
-	centerPosition = make_float4(-330.0f, 300.0f, 250.0f, 0);
+	centerPosition = make_float4(24.0f, 25.0f, 31.0f, 0);
 	yaw = 0.0;
-	pitch = 0.1;
+	pitch = -0.5;
 	radius = 4;
 	apertureRadius = 0.0; // 0.04
 	focalDistance = 4.0f;
@@ -151,8 +151,8 @@ void InteractiveCamera::buildRenderCamera(Camera* renderCamera){
 	float zDirection = cos(yaw) * cos(pitch);
 	float4 directionToCamera = make_float4(xDirection, yDirection, zDirection, 0);
 	viewDirection = directionToCamera * (-1.0);
-	float4 eyePosition = centerPosition + directionToCamera * radius;
-	//float4 eyePosition = centerPosition; // rotate camera from stationary viewpoint
+	//float4 eyePosition = centerPosition + directionToCamera * radius;
+	float4 eyePosition = centerPosition; // rotate camera from stationary viewpoint
 
 
 	renderCamera->position = eyePosition;

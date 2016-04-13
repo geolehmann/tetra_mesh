@@ -27,7 +27,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="Sphere.h" />
+    <ClInclude Include="stb_truetype.h" />
     <ClInclude Include="tetgen_io.h" />
+    <ClInclude Include="Util.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{A22737C5-107E-4026-9223-04B093804570}</ProjectGuid>

@@ -14,10 +14,10 @@
 */
 
 #define GLEW_STATIC
+#include "Util.h"
 #include "tetgen_io.h"
 #include "Camera.h"
 #include "device_launch_parameters.h"
-#include "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.5\extras\CUPTI\include\GL\glew.h"
 #include "GLFW/glfw3.h"
 #include <cuda_gl_interop.h>
 #include <curand.h>
@@ -27,7 +27,7 @@
 
 #define spp 1
 #define gamma 2.2f
-#define MAX_DEPTH 5
+#define MAX_DEPTH 4
 #define width 1024	
 #define height 768
 
@@ -90,13 +90,26 @@ static void error_callback(int error, const char* description)
 void updateCamPos()
 {
 	// check if current pos is still inside tetrahedralization
-	CheckOutOfBBox(&box, hostRendercam->position);
+	ClampToBBox(&box, hostRendercam->position);
 	// look for new tetrahedra...
-	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
+	/*uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
 	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, hostRendercam->position);
-	gpuErrchk(cudaDeviceSynchronize());
+	gpuErrchk(cudaDeviceSynchronize());*/
+
+	// ändern: von _start_tet die vier adjtets laden, mit IsPointInTetrahedron checken
+	int32_t adjtets[4] = { mesh->t_adjtet1[_start_tet], mesh->t_adjtet2[_start_tet], mesh->t_adjtet3[_start_tet], mesh->t_adjtet4[_start_tet] };
+	if (!IsPointInThisTetCPU(mesh, hostRendercam->position, _start_tet))
+	{
+		fprintf(stderr, "Alert - Outside \n");
+		fprintf(stderr, "Adjacent tets: %ld %ld %ld %ld  \n", adjtets[0], adjtets[1], adjtets[2], adjtets[3]);
+		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[0])) _start_tet = adjtets[0];
+		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[1])) _start_tet = adjtets[1];
+		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[2])) _start_tet = adjtets[2];
+		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[3])) _start_tet = adjtets[3];
+		fprintf(stderr, "New starting tet: %ld \n", _start_tet);
+	}
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -168,6 +181,11 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 	{
 		interactiveCamera->changeYaw(-0.02f);
 	}
+	if (key == GLFW_KEY_B && buttonActive)
+	{
+		// debug stuff
+		updateCamPos();
+	}
 
 	bufferReset = true;
 }
@@ -212,7 +230,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, curandState* randState)
 {
-	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 1.0f);	// colour mask
+	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 1.0f);	// colour mask (aacumulated reflectance)
 	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
 	float4 originInWorldSpace = ray.o;
 	float4 rayInWorldSpace = ray.d;
@@ -233,6 +251,8 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		rayhit firsthit;
 		Geometry geom;
 
+		if (!IsPointInThisTet(mesh, ray.o, start) && bounces == 0) printf("ALLLLEEERRRRTTTTTT \n");
+
 		// ------------------------------ TRIANGLE intersection --------------------------------------------
 		traverse_ray(mesh, originInWorldSpace, rayInWorldSpace, newstart, firsthit);
 		// set new starting tetrahedra and ray origin
@@ -241,7 +261,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
 		// get intersection distance
 		bool isEdge = false;
-		dist = intersect_dist(ray, a1, a2, a3, isEdge);
+		dist = intersect_dist(Ray(originInWorldSpace,rayInWorldSpace), a1, a2, a3, isEdge);
 		pointHitInWorldSpace = originInWorldSpace + rayInWorldSpace * dist;
 
 
@@ -267,15 +287,16 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		if (geom == TRIANGLE)
 		{
 			x = pointHitInWorldSpace;
-			n = normalize(getTriangleNormal(a1, a2, a3));
+			n = getTriangleNormal(a1, a2, a3); n = normalize(n);
 			nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
 
-			if (firsthit.constrained == true) { emit = make_float4(60.0f, 40.0f, 20.0f, 0.0f); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
-			if (firsthit.wall == true) { emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
-			if (firsthit.dark == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
+			if (firsthit.constrained == true) { emit = make_float4(1.0f, 1.0f, 0.2f, 0.0f); f = make_float4(0.1f, 0.8f, 0.1f, 0.0f); }
+			if (firsthit.wall == true) { emit = make_float4(0.01f, 0.01f, 0.01f, 0.0f); f = make_float4(0.2f, 0.8f, 0.8f, 0.2f); }
+			if (firsthit.dark == true) { emit = make_float4(1.0f, 0.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
 
 			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
-			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
+			if (firsthit.wall == true) { firsthit.refl_t = SPEC; }
+			if (firsthit.dark == true) { firsthit.refl_t = DIFF; }
 			//if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
 		}
 
