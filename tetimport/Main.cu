@@ -576,7 +576,12 @@ void render()
 
 		float mrays = width*height*MAX_DEPTH*0.000001 / deltaTime;
 		std::string a = "Currently " + std::to_string(mrays) + " Mray/s";
-		my_stbtt_print(100, 400, a, make_float3(1,1,1));
+
+		my_stbtt_print(100, 200, a, make_float3(1,1,1));
+		std::string str_orig = std::to_string(hostRendercam->position.x) + " " + std::to_string(hostRendercam->position.y) + " " + std::to_string(hostRendercam->position.z);
+		std::string str_dir = std::to_string(hostRendercam->view.x) + " " + std::to_string(hostRendercam->view.y) + " " + std::to_string(hostRendercam->view.z);
+		my_stbtt_print(100, 150, "Ray origin: " + str_orig, make_float3(1,1,1));
+		my_stbtt_print(100, 100, "Ray direction: "+ str_dir, make_float3(1,1,1));
 
 		glfwSwapBuffers(window);
 	}
