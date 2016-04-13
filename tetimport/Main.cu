@@ -295,7 +295,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 			if (firsthit.dark == true) { emit = make_float4(1.0f, 0.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
 
 			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
-			if (firsthit.wall == true) { firsthit.refl_t = SPEC; }
+			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.dark == true) { firsthit.refl_t = DIFF; }
 			//if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
 		}
@@ -532,6 +532,8 @@ void render()
 	fprintf(stderr, "VBO created  \n");
 	fprintf(stderr, "Entering glutMainLoop...  \n");
 
+	my_stbtt_initfont();
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
@@ -549,7 +551,7 @@ void render()
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
 		std::stringstream title;
-		title << "tetra_mesh (2015)   -   MRay/s: " << width*height*MAX_DEPTH*0.000001/deltaTime;
+		title << "tetra_mesh (2015-2016) by Christian Lehmann";
 		glfwSetWindowTitle(window, title.str().c_str());
 		
 		// CUDA interop
@@ -571,6 +573,11 @@ void render()
 		glEnableClientState(GL_COLOR_ARRAY);
 		glDrawArrays(GL_POINTS, 0, width * height);
 		glDisableClientState(GL_VERTEX_ARRAY);
+
+		float mrays = width*height*MAX_DEPTH*0.000001 / deltaTime;
+		std::string a = "Currently " + std::to_string(mrays) + " Mray/s";
+		my_stbtt_print(100, 400, a, make_float3(1,1,1));
+
 		glfwSwapBuffers(window);
 	}
 }

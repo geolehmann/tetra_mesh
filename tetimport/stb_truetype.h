@@ -2590,6 +2590,7 @@ STBTT_DEF void stbtt_GetBakedQuad(stbtt_bakedchar *chardata, int pw, int ph, int
    q->y0 = round_y + d3d_bias;
    q->x1 = round_x + b->x1 - b->x0 + d3d_bias;
    q->y1 = round_y + b->y1 - b->y0 + d3d_bias;
+   //q->y1 = round_y + b->y1 - b->y0 + d3d_bias;
 
    q->s0 = b->x0 * ipw;
    q->t0 = b->y0 * iph;
