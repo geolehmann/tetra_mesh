@@ -44,8 +44,11 @@ mouse input - done!!
 support for specular/refractive/diffuse materials - done!!  
 path tracing - done!!!  
 visualize mesh - done!!  
+print debug info onscreen - done!!
   
 Todo:   
-bugfixing..
-implement volumetric path tracing   
+small bugfixing
+include participating media into the pathtracer  
 Implement mesh deformation - Müller et al. (2015)
+properties of tetrahedra - friction etc.
+
