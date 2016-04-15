@@ -49,6 +49,6 @@ print debug info onscreen - done!!
 Todo:   
 small bugfixing
 include participating media into the pathtracer  
-Implement mesh deformation - Müller et al. (2015)
+Implement mesh deformation - Müller et al. (2015)  
 properties of tetrahedra - friction etc.
 
