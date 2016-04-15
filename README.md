@@ -1,8 +1,9 @@
-Tetrahedral raytracing using Tetgen
+Tetrahedral pathtracing using Tetgen
 ===================================
 
-Ray-tracing and path tracing have been a constant research area of computer graphics and
-other disciplines, e.g. seismic raytracing in geophysics or heat flow modeling.
+Ray-tracing and path tracing have been a constant research area in computer graphics and
+other disciplines, e.g. seismic raytracing in geophysics or heat flow modeling. The tetrahedral mesh structure
+is suitable for modeling deformation of volumetric objects and fracture generation such as in rock mechanics.
 
 A major drawback of this techniques is the high computational cost, in particular
 due to ray-mesh intersection and finding the intersected triangle. A common solution is to use
