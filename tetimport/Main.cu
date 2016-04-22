@@ -45,7 +45,7 @@ InteractiveCamera* interactiveCamera = NULL;
 Camera* hostRendercam = NULL;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
-bool buttonActive = false, enableMouseMovement=true, cursorFree=false;
+bool buttonActive = false, enableMouseMovement = true, cursorFree = false;
 float rotate_x = 0.0, rotate_y = 0.0;
 float translate_z = -30.0;
 int lastX = width / 2, lastY = height / 2;
@@ -93,24 +93,32 @@ void updateCamPos()
 	// check if current pos is still inside tetrahedralization
 	ClampToBBox(&box, hostRendercam->position);
 	// look for new tetrahedra...
-	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
+	/*uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
 	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, pos);
-	gpuErrchk(cudaDeviceSynchronize());
+	gpuErrchk(cudaDeviceSynchronize());*/
 
-	// �ndern: von _start_tet die vier adjtets laden, mit IsPointInTetrahedron checken
-	/*int32_t adjtets[4] = { mesh->t_adjtet1[_start_tet], mesh->t_adjtet2[_start_tet], mesh->t_adjtet3[_start_tet], mesh->t_adjtet4[_start_tet] };
+	// ändern: von _start_tet die vier adjtets laden, mit IsPointInTetrahedron checken
+	int32_t adjtets[4] = { mesh->t_adjtet1[_start_tet], mesh->t_adjtet2[_start_tet], mesh->t_adjtet3[_start_tet], mesh->t_adjtet4[_start_tet] };
 	if (!IsPointInThisTetCPU(mesh, pos, _start_tet))
 	{
-		fprintf(stderr, "Alert - Outside \n");
-		fprintf(stderr, "Adjacent tets: %ld %ld %ld %ld  \n", adjtets[0], adjtets[1], adjtets[2], adjtets[3]);
-		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[0])) _start_tet = adjtets[0];
-		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[1])) _start_tet = adjtets[1];
-		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[2])) _start_tet = adjtets[2];
-		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[3])) _start_tet = adjtets[3];
-		fprintf(stderr, "New starting tet: %ld \n", _start_tet);
-	}*/
+	fprintf(stderr, "Alert - Outside \n");
+	fprintf(stderr, "Adjacent tets: %ld %ld %ld %ld  \n", adjtets[0], adjtets[1], adjtets[2], adjtets[3]);
+	if (IsPointInThisTetCPU(mesh, pos, adjtets[0])) _start_tet = adjtets[0];
+	else if (IsPointInThisTetCPU(mesh, pos, adjtets[1])) _start_tet = adjtets[1];
+	else if (IsPointInThisTetCPU(mesh, pos, adjtets[2])) _start_tet = adjtets[2];
+	else if (IsPointInThisTetCPU(mesh, pos, adjtets[3])) _start_tet = adjtets[3];
+	else
+	{
+		uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
+		dim3 Block(_dim, _dim, 1);
+		dim3 Grid(_dim, _dim, 1);
+		GetTetrahedraFromPoint << <Grid, Block >> >(mesh, pos);
+		gpuErrchk(cudaDeviceSynchronize());
+	}
+	fprintf(stderr, "New starting tet: %ld \n", _start_tet);
+	}
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -302,7 +310,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 
 			if (firsthit.face == 959 || firsthit.face == 1046) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
 
-			if (firsthit.constrained == true) { firsthit.refl_t = SPEC; }
+			if (firsthit.constrained == true) { firsthit.refl_t = METAL; }
 			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.dark == true) { firsthit.refl_t = DIFF; }
 			//if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
