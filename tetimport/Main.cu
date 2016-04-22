@@ -244,7 +244,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos)
 
 __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, curandState* randState)
 {
-	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 1.0f);	// colour mask (aacumulated reflectance)
+	float4 mask = make_float4(1.0f, 1.0f, 1.0f, 1.0f);	// colour mask (accumulated reflectance)
 	float4 accucolor = make_float4(0.0f, 0.0f, 0.0f, 0.0f);	// accumulated colour
 	float4 originInWorldSpace = ray.o;
 	float4 rayInWorldSpace = ray.d;
@@ -265,11 +265,8 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		rayhit firsthit;
 		Geometry geom;
 
-		//if (!IsPointInThisTet(mesh, ray.o, start) && bounces == 0) printf("ALLLLEEERRRRTTTTTT \n");
-
 		// ------------------------------ TRIANGLE intersection --------------------------------------------
 		traverse_ray(mesh, originInWorldSpace, rayInWorldSpace, newstart, firsthit);
-		// set new starting tetrahedra and ray origin
 		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
 		float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
 		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
@@ -278,25 +275,27 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		dist = intersect_dist(Ray(originInWorldSpace, rayInWorldSpace), a1, a2, a3, isEdge);
 		pointHitInWorldSpace = originInWorldSpace + rayInWorldSpace * dist;
 
-
+		float4 spherePos = make_float4(10,10,10,0);
+		float sphereRad = 10, sphereDist;
+		bool anySpheres = true;
 		// ------------------------------ SPHERE intersection --------------------------------------------
-		/*float spi = sphIntersect(originInWorldSpace, rayInWorldSpace, make_float4(6, 6, 0, 0), 10);
-		if (spi > 0.0)
+		if (anySpheres) { sphereDist = sphIntersect(originInWorldSpace, rayInWorldSpace, spherePos, sphereRad); }
+		if (sphereDist > 0.0)
 		{
-		geom = SPHERE;
-		traverse_until_point(mesh, originInWorldSpace, rayInWorldSpace, newstart, originInWorldSpace + rayInWorldSpace * spi, firsthit);
+			geom = SPHERE;
+			traverse_until_point(mesh, originInWorldSpace, rayInWorldSpace, newstart, originInWorldSpace + rayInWorldSpace * sphereDist, firsthit);
 		}
-		else*/ { geom = TRIANGLE; }
+		else { geom = TRIANGLE; }
 
-		/*if (geom == SPHERE)
+		if (geom == SPHERE)
 		{
 		emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
 		f = make_float4(1.0f, 1.0f, 1.0f, 0.0f);
-		firsthit.refl_t = SPEC;
-		x = originInWorldSpace + rayInWorldSpace * spi;
-		n= normalize((x - make_float4(6,6,0,0)));
+		firsthit.refl_t = REFR;
+		x = originInWorldSpace + rayInWorldSpace * sphereDist;
+		n= normalize((x - spherePos));
 		nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
-		}*/
+		}
 
 		if (geom == TRIANGLE)
 		{
@@ -310,7 +309,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 
 			if (firsthit.face == 959 || firsthit.face == 1046) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
 
-			if (firsthit.constrained == true) { firsthit.refl_t = METAL; }
+			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.dark == true) { firsthit.refl_t = DIFF; }
 			//if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
@@ -548,7 +547,7 @@ void render()
 	fprintf(stderr, "VBO created  \n");
 	fprintf(stderr, "Entering glutMainLoop...  \n");
 
-	my_stbtt_initfont();
+	my_stbtt_initfont(); // font initialization
 
 	while (!glfwWindowShouldClose(window))
 	{
