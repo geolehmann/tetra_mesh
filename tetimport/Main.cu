@@ -1,6 +1,6 @@
-/*
+ï»¿/*
 *  tetrahedra-based raytracer
-*  Copyright (C) 2015  Christian Lehmann
+*  Copyright (C) 2015-2016  Christian Lehmann
 *
 *  This program is free software; you can redistribute it and/or modify
 *  it under the terms of the GNU General Public License as published by
@@ -27,8 +27,8 @@
 
 #define spp 1
 #define gamma 2.2f
-#define MAX_DEPTH 4
-#define width 1024	
+#define MAX_DEPTH 3
+#define width 1366	
 #define height 768
 
 float3* finalimage;
@@ -45,7 +45,7 @@ InteractiveCamera* interactiveCamera = NULL;
 Camera* hostRendercam = NULL;
 int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
-bool buttonActive = false;
+bool buttonActive = false, enableMouseMovement=true, cursorFree=false;
 float rotate_x = 0.0, rotate_y = 0.0;
 float translate_z = -30.0;
 int lastX = width / 2, lastY = height / 2;
@@ -89,18 +89,19 @@ static void error_callback(int error, const char* description)
 
 void updateCamPos()
 {
+	float4 pos = hostRendercam->position;
 	// check if current pos is still inside tetrahedralization
 	ClampToBBox(&box, hostRendercam->position);
 	// look for new tetrahedra...
 	/*uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
-	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, hostRendercam->position);
+	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, pos);
 	gpuErrchk(cudaDeviceSynchronize());*/
 
-	// ändern: von _start_tet die vier adjtets laden, mit IsPointInTetrahedron checken
+	// ï¿½ndern: von _start_tet die vier adjtets laden, mit IsPointInTetrahedron checken
 	int32_t adjtets[4] = { mesh->t_adjtet1[_start_tet], mesh->t_adjtet2[_start_tet], mesh->t_adjtet3[_start_tet], mesh->t_adjtet4[_start_tet] };
-	if (!IsPointInThisTetCPU(mesh, hostRendercam->position, _start_tet))
+	if (!IsPointInThisTetCPU(mesh, pos, _start_tet))
 	{
 		fprintf(stderr, "Alert - Outside \n");
 		fprintf(stderr, "Adjacent tets: %ld %ld %ld %ld  \n", adjtets[0], adjtets[1], adjtets[2], adjtets[3]);
@@ -186,6 +187,11 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		// debug stuff
 		updateCamPos();
 	}
+	if (key == GLFW_KEY_C && action == GLFW_PRESS)
+	{
+		if (cursorFree == false) { glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL); cursorFree = true; enableMouseMovement = false; }
+		else { glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); cursorFree = false; enableMouseMovement = true; }
+	}
 
 	bufferReset = true;
 }
@@ -199,11 +205,11 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos)
-{	
+{
 	int deltaX = lastX - xpos;
 	int deltaY = lastY - ypos;
 
-	if (deltaX != 0 || deltaY != 0) {
+	if (enableMouseMovement) if (deltaX != 0 || deltaY != 0) {
 
 		if (theButtonState == 0)  // Rotate
 		{
@@ -261,27 +267,27 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
 		// get intersection distance
 		bool isEdge = false;
-		dist = intersect_dist(Ray(originInWorldSpace,rayInWorldSpace), a1, a2, a3, isEdge);
+		dist = intersect_dist(Ray(originInWorldSpace, rayInWorldSpace), a1, a2, a3, isEdge);
 		pointHitInWorldSpace = originInWorldSpace + rayInWorldSpace * dist;
 
 
 		// ------------------------------ SPHERE intersection --------------------------------------------
 		/*float spi = sphIntersect(originInWorldSpace, rayInWorldSpace, make_float4(6, 6, 0, 0), 10);
-		if (spi > 0.0) 
-		{ 
-			geom = SPHERE; 
-			traverse_until_point(mesh, originInWorldSpace, rayInWorldSpace, newstart, originInWorldSpace + rayInWorldSpace * spi, firsthit);
-		} 	
+		if (spi > 0.0)
+		{
+		geom = SPHERE;
+		traverse_until_point(mesh, originInWorldSpace, rayInWorldSpace, newstart, originInWorldSpace + rayInWorldSpace * spi, firsthit);
+		}
 		else*/ { geom = TRIANGLE; }
 
 		/*if (geom == SPHERE)
 		{
-			emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); 
-			f = make_float4(1.0f, 1.0f, 1.0f, 0.0f);
-			firsthit.refl_t = SPEC; 
-			x = originInWorldSpace + rayInWorldSpace * spi;
-			n= normalize((x - make_float4(6,6,0,0)));
-			nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
+		emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+		f = make_float4(1.0f, 1.0f, 1.0f, 0.0f);
+		firsthit.refl_t = SPEC;
+		x = originInWorldSpace + rayInWorldSpace * spi;
+		n= normalize((x - make_float4(6,6,0,0)));
+		nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
 		}*/
 
 		if (geom == TRIANGLE)
@@ -290,9 +296,11 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 			n = getTriangleNormal(a1, a2, a3); n = normalize(n);
 			nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
 
-			if (firsthit.constrained == true) { emit = make_float4(1.0f, 1.0f, 0.2f, 0.0f); f = make_float4(0.1f, 0.8f, 0.1f, 0.0f); }
-			if (firsthit.wall == true) { emit = make_float4(0.01f, 0.01f, 0.01f, 0.0f); f = make_float4(0.2f, 0.8f, 0.8f, 0.2f); }
+			if (firsthit.constrained == true) { emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); f = make_float4(0.75f, 0.75f, 0.75f, 0.0f); }
+			if (firsthit.wall == true) { emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); f = make_float4(0.2f, 0.8f, 0.8f, 0.2f); }
 			if (firsthit.dark == true) { emit = make_float4(1.0f, 0.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
+
+			if (firsthit.face == 959 || firsthit.face == 1046) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
 
 			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
@@ -322,7 +330,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 			dw = normalize(dw);
 
 			// offset origin next path segment to prevent self intersection
-			pointHitInWorldSpace = x +w * 0.01;  // scene size dependent
+			pointHitInWorldSpace = x + w * 0.01;  // scene size dependent
 
 			// multiply mask with colour of object
 			mask *= f;
@@ -463,7 +471,7 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float3 *accumbuffer,
 		float4 pointOnImagePlane = rendercampos + ((pointOnPlaneOneUnitAwayFromEye - rendercampos) * focalDistance); // Important for depth of field!		
 		float4 aperturePoint;
 		if (apertureRadius > 0.00001)
-		{ 
+		{
 			float random1 = curand_uniform(&randState);
 			float random2 = curand_uniform(&randState);
 			float angle = 2 * PI * random1;
@@ -472,7 +480,7 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float3 *accumbuffer,
 			float apertureY = sin(angle) * distance;
 			aperturePoint = rendercampos + (horizontalAxis * apertureX) + (verticalAxis * apertureY);
 		}
-		else { 	aperturePoint = rendercampos;	}
+		else { aperturePoint = rendercampos; }
 
 		// calculate ray direction of next ray in path
 		float4 apertureToImagePlane = pointOnImagePlane - aperturePoint;
@@ -481,7 +489,7 @@ __global__ void renderKernel(mesh2 *tetmesh, int32_t start, float3 *accumbuffer,
 		rayInWorldSpace = normalize(rayInWorldSpace);
 		float4 originInWorldSpace = aperturePoint;
 
-		finalcol += radiance(tetmesh, start, Ray(originInWorldSpace, rayInWorldSpace), rendercampos, &randState) * (1.0f/spp);
+		finalcol += radiance(tetmesh, start, Ray(originInWorldSpace, rayInWorldSpace), rendercampos, &randState) * (1.0f / spp);
 	}
 
 	accumbuffer[i] += finalcol;
@@ -509,7 +517,7 @@ void render()
 
 	glewExperimental = GL_TRUE;
 	glewInit();
-	if (!glewIsSupported("GL_VERSION_2_0 ")) 
+	if (!glewIsSupported("GL_VERSION_2_0 "))
 	{
 		fprintf(stderr, "GLEW not supported.");
 		fflush(stderr);
@@ -521,7 +529,7 @@ void render()
 	glClearColor(0.0, 0.0, 0.0, 0.0);
 	glMatrixMode(GL_PROJECTION);
 	glOrtho(0.0, width, 0.0, height, 0, 1);
-	
+
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, width * height * sizeof(float3), 0, GL_DYNAMIC_DRAW);
@@ -553,16 +561,16 @@ void render()
 		std::stringstream title;
 		title << "tetra_mesh (2015-2016) by Christian Lehmann";
 		glfwSetWindowTitle(window, title.str().c_str());
-		
+
 		// CUDA interop
 		cudaGraphicsMapResources(1, &_cgr, 0);
-		cudaGraphicsResourceGetMappedPointer((void**)&finalimage, &num_bytes,_cgr);
+		cudaGraphicsResourceGetMappedPointer((void**)&finalimage, &num_bytes, _cgr);
 		glClear(GL_COLOR_BUFFER_BIT);
 		dim3 block(16, 16, 1);
 		dim3 grid(width / block.x, height / block.y, 1);
-		renderKernel << <grid, block >> >(mesh, _start_tet, accumulatebuffer, finalimage, WangHash(frameNumber), frameNumber, 
-		hostRendercam->position, hostRendercam->view, hostRendercam->up, hostRendercam->fov.x, hostRendercam->fov.x, 
-		hostRendercam->focalDistance, hostRendercam->apertureRadius);
+		renderKernel << <grid, block >> >(mesh, _start_tet, accumulatebuffer, finalimage, WangHash(frameNumber), frameNumber,
+			hostRendercam->position, hostRendercam->view, hostRendercam->up, hostRendercam->fov.x, hostRendercam->fov.x,
+			hostRendercam->focalDistance, hostRendercam->apertureRadius);
 		gpuErrchk(cudaDeviceSynchronize());
 		cudaGraphicsUnmapResources(1, &_cgr, 0);
 
@@ -577,11 +585,12 @@ void render()
 		float mrays = width*height*MAX_DEPTH*0.000001 / deltaTime;
 		std::string a = "Currently " + std::to_string(mrays) + " Mray/s";
 
-		my_stbtt_print(100, 200, a, make_float3(1,1,1));
+		my_stbtt_print(100, 200, a, make_float3(1, 1, 1));
 		std::string str_orig = std::to_string(hostRendercam->position.x) + " " + std::to_string(hostRendercam->position.y) + " " + std::to_string(hostRendercam->position.z);
 		std::string str_dir = std::to_string(hostRendercam->view.x) + " " + std::to_string(hostRendercam->view.y) + " " + std::to_string(hostRendercam->view.z);
-		my_stbtt_print(100, 150, "Ray origin: " + str_orig, make_float3(1,1,1));
-		my_stbtt_print(100, 100, "Ray direction: "+ str_dir, make_float3(1,1,1));
+		my_stbtt_print(100, 150, "Ray origin: " + str_orig, make_float3(1, 1, 1));
+		my_stbtt_print(100, 100, "Ray direction: " + str_dir, make_float3(1, 1, 1));
+		my_stbtt_print(100, 50, "Current tet: " + std::to_string(_start_tet), make_float3(1, 1, 1));
 
 		glfwSwapBuffers(window);
 	}
@@ -604,11 +613,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("cornell_spheres.1.ele");
-	tetmesh.load_tet_neigh("cornell_spheres.1.neigh");
-	tetmesh.load_tet_node("cornell_spheres.1.node");
-	tetmesh.load_tet_face("cornell_spheres.1.face");
-	tetmesh.load_tet_t2f("cornell_spheres.1.t2f");
+	tetmesh.load_tet_ele("cornellbox_orig.1.ele");
+	tetmesh.load_tet_neigh("cornellbox_orig.1.neigh");
+	tetmesh.load_tet_node("cornellbox_orig.1.node");
+	tetmesh.load_tet_face("cornellbox_orig.1.face");
+	tetmesh.load_tet_t2f("cornellbox_orig.1.t2f");
 
 	// ===========================
 	//     mesh2
@@ -620,7 +629,7 @@ int main(int argc, char *argv[])
 	mesh->edgenum = tetmesh.edgenum;
 	mesh->facenum = tetmesh.facenum;
 	mesh->nodenum = tetmesh.nodenum;
-	mesh-> tetnum = tetmesh.tetnum;
+	mesh->tetnum = tetmesh.tetnum;
 
 	// NODES
 	cudaMallocManaged(&mesh->n_index, mesh->nodenum*sizeof(uint32_t));
@@ -688,20 +697,21 @@ int main(int argc, char *argv[])
 	gpuErrchk(cudaMallocManaged(&accumulatebuffer, width * height * sizeof(float3)));
 
 	// find starting tetrahedra
-	uint32_t _dim = 2+pow(mesh->tetnum, 0.25);
+	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
 	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, hostRendercam->position);
-	gpuErrchk(cudaDeviceSynchronize()); 
+	gpuErrchk(cudaDeviceSynchronize());
 
-	if (_start_tet == 0) 
+	if (_start_tet == 0)
 	{
 		fprintf(stderr, "Starting point outside tetrahedra! Aborting ... \n");
 		system("PAUSE");
 		exit(0);
 
-	} else fprintf(stderr, "Starting tetrahedra - camera: %lu \n", _start_tet);
-	
+	}
+	else fprintf(stderr, "Starting tetrahedra - camera: %lu \n", _start_tet);
+
 	// main render function
 	render();
 

@@ -58,15 +58,15 @@ public:
 
 InteractiveCamera::InteractiveCamera()
 {
-	centerPosition = make_float4(24.0f, 25.0f, 31.0f, 0);
+	centerPosition = make_float4(6.0f, 43.0f, 21.0f, 0);
 	yaw = 0.0;
-	pitch = -0.5;
+	pitch = 0.0;
 	radius = 4;
-	apertureRadius = 0.0; // 0.04
+	apertureRadius = 0.035; // 0.04
 	focalDistance = 4.0f;
 
 	resolution = make_float2(512, 512);  // width, height
-	fov = make_float2(40, 40);
+	fov = make_float2(80, 80);
 }
 
 InteractiveCamera::~InteractiveCamera() {}

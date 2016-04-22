@@ -329,7 +329,7 @@ __global__ void GetTetrahedraFromPoint(mesh2* mesh, float4 p)
 			float4 v3 = make_float4(mesh->n_x[mesh->t_nindex3[i]], mesh->n_y[mesh->t_nindex3[i]], mesh->n_z[mesh->t_nindex3[i]], 0);
 			float4 v4 = make_float4(mesh->n_x[mesh->t_nindex4[i]], mesh->n_y[mesh->t_nindex4[i]], mesh->n_z[mesh->t_nindex4[i]], 0);
 			if (IsPointInTetrahedron(v1, v2, v3, v4, p) == true) _start_tet = i;*/
-			if (IsPointInThisTet(mesh, p, i) == true) _start_tet = i;
+			if (IsPointInThisTet(mesh, p, i) == true) _start_tet = i; 
 		}
 
 }

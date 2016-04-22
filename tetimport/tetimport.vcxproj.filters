@@ -15,11 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="Main.cu">
-      <Filter>Quelldateien</Filter>
-    </CudaCompile>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="Math.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
@@ -38,5 +33,10 @@
     <ClInclude Include="Util.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="Main.cu">
+      <Filter>Quelldateien</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>
