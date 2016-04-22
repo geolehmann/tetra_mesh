@@ -26,6 +26,8 @@ and the smallpt pathtracer (http://kevinbeason.com/smallpt/).
 Hang Si (2015). _TetGen, a Delaunay-Based Quality Tetrahedral Mesh Generator._ ACM Trans. on Mathematical Software. 41 (2), Article 11 (February 2015), 36 pages.
 
 Lagae, A. and Dutré, P. (2008). _Accelerating Ray Tracing using Constrained Tetrahedralizations._ Computer Graphics Forum, 27: 1303–1312.
+
+Sanzenbacher, S. (2010) Darstellung von Kaustiken und Lichtstreuung in Interaktiven Anwendungen. _Unpublished diploma thesis, Institut für Visualisierung und Interaktive Systeme, University Stuttgart._
   
 **Current status (04/12/2016):**  
 
@@ -51,4 +53,3 @@ small bugfixing
 include participating media into the pathtracer  
 Implement mesh deformation - Müller et al. (2015)  
 properties of tetrahedra - friction etc.
-
