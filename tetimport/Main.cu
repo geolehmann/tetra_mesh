@@ -93,14 +93,14 @@ void updateCamPos()
 	// check if current pos is still inside tetrahedralization
 	ClampToBBox(&box, hostRendercam->position);
 	// look for new tetrahedra...
-	/*uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
+	uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 	dim3 Block(_dim, _dim, 1);
 	dim3 Grid(_dim, _dim, 1);
 	GetTetrahedraFromPoint << <Grid, Block >> >(mesh, pos);
-	gpuErrchk(cudaDeviceSynchronize());*/
+	gpuErrchk(cudaDeviceSynchronize());
 
 	// �ndern: von _start_tet die vier adjtets laden, mit IsPointInTetrahedron checken
-	int32_t adjtets[4] = { mesh->t_adjtet1[_start_tet], mesh->t_adjtet2[_start_tet], mesh->t_adjtet3[_start_tet], mesh->t_adjtet4[_start_tet] };
+	/*int32_t adjtets[4] = { mesh->t_adjtet1[_start_tet], mesh->t_adjtet2[_start_tet], mesh->t_adjtet3[_start_tet], mesh->t_adjtet4[_start_tet] };
 	if (!IsPointInThisTetCPU(mesh, pos, _start_tet))
 	{
 		fprintf(stderr, "Alert - Outside \n");
@@ -110,12 +110,12 @@ void updateCamPos()
 		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[2])) _start_tet = adjtets[2];
 		if (IsPointInThisTetCPU(mesh, hostRendercam->position, adjtets[3])) _start_tet = adjtets[3];
 		fprintf(stderr, "New starting tet: %ld \n", _start_tet);
-	}
+	}*/
 }
 
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	int dist = 5.0f;
+	int dist = 1.0;
 
 	if (action == GLFW_PRESS) buttonActive = true;
 	if (action == GLFW_RELEASE) buttonActive = false;
@@ -257,7 +257,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		rayhit firsthit;
 		Geometry geom;
 
-		if (!IsPointInThisTet(mesh, ray.o, start) && bounces == 0) printf("ALLLLEEERRRRTTTTTT \n");
+		//if (!IsPointInThisTet(mesh, ray.o, start) && bounces == 0) printf("ALLLLEEERRRRTTTTTT \n");
 
 		// ------------------------------ TRIANGLE intersection --------------------------------------------
 		traverse_ray(mesh, originInWorldSpace, rayInWorldSpace, newstart, firsthit);
@@ -302,7 +302,7 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 
 			if (firsthit.face == 959 || firsthit.face == 1046) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
 
-			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
+			if (firsthit.constrained == true) { firsthit.refl_t = SPEC; }
 			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.dark == true) { firsthit.refl_t = DIFF; }
 			//if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
@@ -601,7 +601,7 @@ int main(int argc, char *argv[])
 	delete interactiveCamera;
 	interactiveCamera = new InteractiveCamera();
 	interactiveCamera->setResolution(width, height);
-	interactiveCamera->setFOVX(45);
+	interactiveCamera->setFOVX(60);
 	hostRendercam = new Camera();
 	interactiveCamera->buildRenderCamera(hostRendercam);
 
