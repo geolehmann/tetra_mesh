@@ -361,8 +361,9 @@ void ClampToBBox(BBox* boundingbox, float4 &p)
 	if (boundingbox->max.z - 0.2 < p.z)  p.z = boundingbox->max.z;
 }
 
-__device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
+__device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet, float4 &uvw)
 {
+	bool found = false;
 	face = 0;
 	tet = 0;
 
@@ -385,49 +386,71 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 	double QAB = ScTP(q, p0, p1); // A B
 	double QBC = ScTP(q, p1, p2); // B C
 	double QAC = ScTP(q, p0, p2); // A C
-	double QAD = ScTP(q, p0, p3); // A D
-	double QBD = ScTP(q, p1, p3); // B D
-	double QCD = ScTP(q, p2, p3); // C D
-
 	double sQAB = signf(QAB); // A B
 	double sQBC = signf(QBC); // B C
 	double sQAC = signf(QAC); // A C
-	double sQAD = signf(QAD); // A D
-	double sQBD = signf(QBD); // B D
-	double sQCD = signf(QCD); // C D
+
+	double QAD; // A D
+	double QBD; // B D
+	double sQAD; // A D
+	double sQBD; // B D
+	double QCD; // C D
+	double sQCD; // C D
+
 
 	// ABC
 	if (sQAB != 0 && sQAC !=0 && sQBC != 0) 
 	{ 
-		if (sQAB < 0 && sQAC > 0 && sQBC < 0) { face = findex[3]; tet = adjtet[3]; } // exit face
+		if (sQAB < 0 && sQAC > 0 && sQBC < 0) { face = findex[3]; tet = adjtet[3]; uvw = make_float4(-QBC, QAC, -QAB, 0); found = true; } // exit face
 	}
-	// BAD
-	if (sQAB != 0 && sQAD != 0 && sQBD != 0)
+
+	if (!found)
 	{
-		if (sQAB > 0 && sQAD < 0 && sQBD > 0) { face = findex[2]; tet = adjtet[2]; } // exit face
+		QAD = ScTP(q, p0, p3); // A D
+		QBD = ScTP(q, p1, p3); // B D
+		sQAD = signf(QAD); // A D
+		sQBD = signf(QBD); // B D
+
+		// BAD
+		if (sQAB != 0 && sQAD != 0 && sQBD != 0)
+		{
+			if (sQAB > 0 && sQAD < 0 && sQBD > 0) { face = findex[2]; tet = adjtet[2]; uvw = make_float4(-QAD, QBD, QAB, 0); found = true; } // exit face
+		}
 	}
-	// CDA
-	if (sQAD != 0 && sQAC != 0 && sQCD != 0)
+
+	if (!found)
 	{
-		if (sQAD > 0 && sQAC < 0 && sQCD < 0) { face = findex[1]; tet = adjtet[1]; } // exit face
+		QCD = ScTP(q, p2, p3); // C D
+		sQCD = signf(QCD); // C D
+
+		// CDA
+		if (sQAD != 0 && sQAC != 0 && sQCD != 0)
+		{
+			if (sQAD > 0 && sQAC < 0 && sQCD < 0) { face = findex[1]; tet = adjtet[1]; uvw = make_float4(QAD, -QAC, -QCD, 0); found = true; } // exit face
+		}
 	}
-	// DCB
-	if (sQBC != 0 && sQBD != 0 && sQCD != 0)
+
+	if (!found)
 	{
-		if (sQBC > 0 && sQBD < 0 && sQCD > 0) { face = findex[0]; tet = adjtet[0]; } // exit face
+		// DCB
+		if (sQBC != 0 && sQBD != 0 && sQCD != 0)
+		{
+			if (sQBC > 0 && sQBD < 0 && sQCD > 0) { face = findex[0]; tet = adjtet[0]; uvw = make_float4(QBC, -QBD, QCD, 0); } // exit face
+		}
 	}
 	// No face hit
 	// if (face == 0 && tet == 0) { printf("Error! No exit tet found. \n"); }
 }
 
 
-__device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t start, rayhit &d)
+__device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t start, rayhit &d, double &dist, bool edgeVisualisation, bool &isEdge, float4 &normal)
 {
 	int32_t current_tet = start;
 	int32_t nexttet, nextface, lastface = 0;
-	bool hitfound = false;
+	bool hitfound = false, edgeFound=false;
+	float4 uvw;
 
-	for (d.depth = 0; d.depth < 80; d.depth++)
+	for (d.depth = 0; d.depth < 150; d.depth++)
 	{
 		if (!hitfound)
 		{
@@ -439,24 +462,36 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 				make_float4(mesh->n_x[mesh->t_nindex3[current_tet]], mesh->n_y[mesh->t_nindex3[current_tet]], mesh->n_z[mesh->t_nindex3[current_tet]], 0),
 				make_float4(mesh->n_x[mesh->t_nindex4[current_tet]], mesh->n_y[mesh->t_nindex4[current_tet]], mesh->n_z[mesh->t_nindex4[current_tet]], 0) };
 
-				//if (!IsPointInTetrahedron(nodes[0],nodes[1],nodes[2],nodes[3], rayo) && current_tet == start) printf("ALLLLEEERRRRTTTTTT \n");
-				//if (!IsPointInThisTet(mesh, rayo, current_tet) && current_tet == start) printf("ALLLLEEERRRRTTTTTT \n");
-
-			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet);
+			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet, uvw);
 
 			if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
 			if (mesh->face_is_wall[nextface] == true)		 { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
 			if (nexttet == -1 || nextface == -1) { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // when adjacent tetrahedra is -1, ray stops
 			lastface = nextface;
 			current_tet = nexttet;
+
+			//edge detection
+			if (edgeVisualisation)
+			{
+				float denom = 1.0f / (uvw.x + uvw.y + uvw.z);
+				uvw *= denom;
+				if (!edgeFound) if (nearlyzero(uvw.x) || nearlyzero(uvw.y) || nearlyzero(uvw.z)) { isEdge = true; edgeFound = true; }
+			}
 		}
 	}
 
-	// get nodes from nextface
-	//float4 na = make_float4(mesh->n_x[mesh->f_node_a[nextface]], mesh->n_y[mesh->f_node_a[nextface]], mesh->n_z[mesh->f_node_a[nextface]], 0);
-	//float4 nb = make_float4(mesh->n_x[mesh->f_node_b[nextface]], mesh->n_y[mesh->f_node_b[nextface]], mesh->n_z[mesh->f_node_b[nextface]], 0);
-	//float4 nc = make_float4(mesh->n_x[mesh->f_node_c[nextface]], mesh->n_y[mesh->f_node_c[nextface]], mesh->n_z[mesh->f_node_c[nextface]], 0);
-	
+	//intersection algorithm
+	float4 n_a = make_float4(mesh->n_x[mesh->f_node_a[nextface]], mesh->n_y[mesh->f_node_a[nextface]], mesh->n_z[mesh->f_node_a[nextface]], 0);
+	float4 n_b = make_float4(mesh->n_x[mesh->f_node_b[nextface]], mesh->n_y[mesh->f_node_b[nextface]], mesh->n_z[mesh->f_node_b[nextface]], 0);
+	float4 n_c = make_float4(mesh->n_x[mesh->f_node_c[nextface]], mesh->n_y[mesh->f_node_c[nextface]], mesh->n_z[mesh->f_node_c[nextface]], 0);
+
+	float4 e1 = n_b - n_a;
+	float4 e2 = n_c - n_a;
+	float4 s = rayo - n_a;
+	normal = Cross(e1, e2);
+	float d_ = -1.0f / Dot(rayd, normal);
+	dist = Dot(s, normal) * d_;
+
 	if (!hitfound)
 	{
 		d.dark = true;
@@ -471,6 +506,7 @@ __device__ void traverse_until_point(mesh2 *mesh, float4 rayo, float4 rayd, int3
 	int32_t current_tet = start;
 	int32_t nexttet, nextface, lastface = 0;
 	bool hitfound = false;
+	float4 uvw;
 
 	for (d.depth = 0; d.depth < 80; d.depth++)
 	{
@@ -484,7 +520,7 @@ __device__ void traverse_until_point(mesh2 *mesh, float4 rayo, float4 rayd, int3
 				make_float4(mesh->n_x[mesh->t_nindex3[current_tet]], mesh->n_y[mesh->t_nindex3[current_tet]], mesh->n_z[mesh->t_nindex3[current_tet]], 0),
 				make_float4(mesh->n_x[mesh->t_nindex4[current_tet]], mesh->n_y[mesh->t_nindex4[current_tet]], mesh->n_z[mesh->t_nindex4[current_tet]], 0) };
 
-			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet);
+			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet, uvw);
 
 			if (IsPointInTetrahedron(nodes[0], nodes[1], nodes[2], nodes[3], end)) { hitfound = true;d.face = nextface; d.tet = current_tet;  }
 

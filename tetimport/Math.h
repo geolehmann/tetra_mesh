@@ -100,6 +100,8 @@ inline __device__ __host__ float clamp(float f, float a, float b)
 
 __device__ bool HasNaNs(float4 a) { return isnan(a.x) || isnan(a.y) || isnan(a.z); }
 
+__device__ float4 mix(float4 x, float4 y, float a) { return(x*(-a + 1) + y*a); }
+
 struct RGB
 {
 	float x, y, z;
@@ -131,47 +133,8 @@ struct Ray
 
 __device__ bool nearlyzero(float a)
 {
-	if (a > 0.0 && a < 0.01) return true;
+	if (a > 0.0 && a < 0.0001) return true;
 	return false;
-}
-
-__device__ float intersect_dist(const Ray &ray, const float4 &a, const float4 &b, const float4 &c, bool &isEdge)
-{
-	float4 pq = ray.d;
-	float4 pa = a - ray.o;
-	float4 pb = b - ray.o;
-	float4 pc = c - ray.o;
-
-	float u = ScTP(pq, pc, pb);
-	float v = ScTP(pq, pa, pc);
-	float w = ScTP(pq, pb, pa);
-	float denom = 1.0f / (u + v + w);
-	u *= denom;
-	v *= denom;
-	w *= denom;
-
-	if (nearlyzero(u) || nearlyzero(w) || nearlyzero(v)) isEdge = true;
-
-	float4 e1 = b - a;
-	float4 e2 = c - a;
-	float4 q = Cross(ray.d, e2);
-	float d = Dot(e1, q);
-	float4 s = ray.o - a;
-	float4 r = Cross(s, e1);
-	return Dot(e2, r) / d;
-
-	/*float4 e1 = b - a;
-	float4 e2 = c - a;
-	float4 N = Cross(e1, e2);
-	double NdotRayDirection = Dot(N,ray.d); 
-	double d = Dot(N,a); 
-	return (Dot(N,ray.o) + d) / NdotRayDirection; */
-
-}
-
-__device__ float4 getTriangleNormal(const float4 &p1, const float4 &p2, const float4 &p3)
-{
-	return(Cross(p2 - p1, p3 - p1));
 }
 
 // ----------------------- non-CUDA math -----------------------

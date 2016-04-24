@@ -58,7 +58,8 @@ public:
 
 InteractiveCamera::InteractiveCamera()
 {
-	centerPosition = make_float4(6.0f, 43.0f, 21.0f, 0);
+	//centerPosition = make_float4(6.0f, 43.0f, 21.0f, 0); // for cornellbox_orig.stl
+	centerPosition = make_float4(10.0f, 10.0f, 10.0f, 0);
 	yaw = 0.0;
 	pitch = 0.0;
 	radius = 4;
@@ -66,7 +67,7 @@ InteractiveCamera::InteractiveCamera()
 	focalDistance = 4.0f;
 
 	resolution = make_float2(512, 512);  // width, height
-	fov = make_float2(80, 80);
+	fov = make_float2(40, 40);
 }
 
 InteractiveCamera::~InteractiveCamera() {}

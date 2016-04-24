@@ -12,3 +12,4 @@ __device__ float sphIntersect( float4 ro, float4 rd, float4 sph, float rad )
     h = sqrt( h );
 	return -b - h;
 }
+

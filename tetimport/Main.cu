@@ -47,7 +47,7 @@ int mouse_old_x, mouse_old_y;
 int mouse_buttons = 0;
 bool buttonActive = false, enableMouseMovement = true, cursorFree = false;
 float rotate_x = 0.0, rotate_y = 0.0;
-float translate_z = -30.0;
+float translate_z = 0.0;
 int lastX = width / 2, lastY = height / 2;
 int theButtonState = 0;
 int theModifierState = 0;
@@ -103,21 +103,22 @@ void updateCamPos()
 	int32_t adjtets[4] = { mesh->t_adjtet1[_start_tet], mesh->t_adjtet2[_start_tet], mesh->t_adjtet3[_start_tet], mesh->t_adjtet4[_start_tet] };
 	if (!IsPointInThisTetCPU(mesh, pos, _start_tet))
 	{
-	fprintf(stderr, "Alert - Outside \n");
-	fprintf(stderr, "Adjacent tets: %ld %ld %ld %ld  \n", adjtets[0], adjtets[1], adjtets[2], adjtets[3]);
+	//fprintf(stderr, "Alert - Outside \n");
+	//fprintf(stderr, "Adjacent tets: %ld %ld %ld %ld  \n", adjtets[0], adjtets[1], adjtets[2], adjtets[3]);
 	if (IsPointInThisTetCPU(mesh, pos, adjtets[0])) _start_tet = adjtets[0];
 	else if (IsPointInThisTetCPU(mesh, pos, adjtets[1])) _start_tet = adjtets[1];
 	else if (IsPointInThisTetCPU(mesh, pos, adjtets[2])) _start_tet = adjtets[2];
 	else if (IsPointInThisTetCPU(mesh, pos, adjtets[3])) _start_tet = adjtets[3];
 	else
 	{
+		fprintf(stderr, "Fallback to CUDA search for starting tet\n");
 		uint32_t _dim = 2 + pow(mesh->tetnum, 0.25);
 		dim3 Block(_dim, _dim, 1);
 		dim3 Grid(_dim, _dim, 1);
 		GetTetrahedraFromPoint << <Grid, Block >> >(mesh, pos);
 		gpuErrchk(cudaDeviceSynchronize());
 	}
-	fprintf(stderr, "New starting tet: %ld \n", _start_tet);
+	//fprintf(stderr, "New starting tet: %ld \n", _start_tet);
 	}
 }
 
@@ -261,30 +262,22 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		float4 pointHitInWorldSpace;
 		float3 rayorig = make_float3(originInWorldSpace.x, originInWorldSpace.y, originInWorldSpace.z);
 		float3 raydir = make_float3(rayInWorldSpace.x, rayInWorldSpace.y, rayInWorldSpace.z);
+		bool edgeVisualization = false, isEdge = false;
 		double dist;
 		rayhit firsthit;
 		Geometry geom;
 
+
 		// ------------------------------ TRIANGLE intersection --------------------------------------------
-		traverse_ray(mesh, originInWorldSpace, rayInWorldSpace, newstart, firsthit);
-		float4 a1 = make_float4(mesh->n_x[mesh->f_node_a[firsthit.face]], mesh->n_y[mesh->f_node_a[firsthit.face]], mesh->n_z[mesh->f_node_a[firsthit.face]], 0);
-		float4 a2 = make_float4(mesh->n_x[mesh->f_node_b[firsthit.face]], mesh->n_y[mesh->f_node_b[firsthit.face]], mesh->n_z[mesh->f_node_b[firsthit.face]], 0);
-		float4 a3 = make_float4(mesh->n_x[mesh->f_node_c[firsthit.face]], mesh->n_y[mesh->f_node_c[firsthit.face]], mesh->n_z[mesh->f_node_c[firsthit.face]], 0);
-		// get intersection distance
-		bool isEdge = false;
-		dist = intersect_dist(Ray(originInWorldSpace, rayInWorldSpace), a1, a2, a3, isEdge);
+		traverse_ray(mesh, originInWorldSpace, rayInWorldSpace, newstart, firsthit, dist, edgeVisualization, isEdge, n);
 		pointHitInWorldSpace = originInWorldSpace + rayInWorldSpace * dist;
 
+		// ------------------------------ SPHERE intersection --------------------------------------------
 		float4 spherePos = make_float4(10,10,10,0);
 		float sphereRad = 10, sphereDist;
-		bool anySpheres = true;
-		// ------------------------------ SPHERE intersection --------------------------------------------
-		if (anySpheres) { sphereDist = sphIntersect(originInWorldSpace, rayInWorldSpace, spherePos, sphereRad); }
-		if (sphereDist > 0.0)
-		{
-			geom = SPHERE;
-			traverse_until_point(mesh, originInWorldSpace, rayInWorldSpace, newstart, originInWorldSpace + rayInWorldSpace * sphereDist, firsthit);
-		}
+		bool spheresEnabled = false;	
+		if (spheresEnabled) { sphereDist = sphIntersect(originInWorldSpace, rayInWorldSpace, spherePos, sphereRad); }
+		if (sphereDist > 0.0) {	geom = SPHERE; traverse_until_point(mesh, originInWorldSpace, rayInWorldSpace, newstart, originInWorldSpace + rayInWorldSpace * sphereDist, firsthit); }
 		else { geom = TRIANGLE; }
 
 		if (geom == SPHERE)
@@ -300,24 +293,47 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 		if (geom == TRIANGLE)
 		{
 			x = pointHitInWorldSpace;
-			n = getTriangleNormal(a1, a2, a3); n = normalize(n);
+			n = normalize(n);
 			nl = Dot(n, rayInWorldSpace) < 0 ? n : n * -1;
 
 			if (firsthit.constrained == true) { emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); f = make_float4(0.75f, 0.75f, 0.75f, 0.0f); }
-			if (firsthit.wall == true) { emit = make_float4(0.0f, 0.0f, 0.0f, 0.0f); f = make_float4(0.2f, 0.8f, 0.8f, 0.2f); }
+
+			if (firsthit.wall == true) 
+			{ 
+				emit = make_float4(0.3f, 0.3f, 0.3f, 0.0f); 
+				//f = make_float4(0.2f, 0.8f, 0.8f, 0.2f); 
+				/*double resultRed = color1.red + percent * (color2.red - color1.red);
+				double resultGreen = color1.green + percent * (color2.green - color1.green);
+				double resultBlue = color1.blue + percent * (color2.blue - color1.blue);*/
+				float4 color1 = make_float4(0, 0, 0, 0);
+				float4 color2 = make_float4(0.0f, 1.0f, 1.0f, 0);
+
+				//NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
+
+				float percent = (((rayInWorldSpace.y + 1) * (1 - 0)) / (1 + 1)) + 0;
+
+
+				float red = color1.x + percent * (color2.x - color1.x);
+				float green = color1.y + percent * (color2.y - color1.y);
+				float blue = color1.z + percent * (color2.z - color1.z);
+			
+				f = make_float4(red, green, blue, 0);
+			
+			}
+
+
 			if (firsthit.dark == true) { emit = make_float4(1.0f, 0.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
 
-			if (firsthit.face == 959 || firsthit.face == 1046) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
+			//if (firsthit.face == 959 || firsthit.face == 1046) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
 
 			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.dark == true) { firsthit.refl_t = DIFF; }
-			//if (isEdge == true) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
+			if (edgeVisualization && isEdge) { emit = make_float4(1.0f, 1.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f);} // visualize wall/constrained edges
 		}
 
 		// basic material system, all parameters are hard-coded (such as phong exponent, index of refraction)
 		accucolor += (mask * emit);
-
 
 		// diffuse material, based on smallpt by Kevin Beason 
 		if (firsthit.refl_t == DIFF){
@@ -598,6 +614,7 @@ void render()
 		my_stbtt_print(100, 150, "Ray origin: " + str_orig, make_float3(1, 1, 1));
 		my_stbtt_print(100, 100, "Ray direction: " + str_dir, make_float3(1, 1, 1));
 		my_stbtt_print(100, 50, "Current tet: " + std::to_string(_start_tet), make_float3(1, 1, 1));
+		my_stbtt_print(100, 10, "Current ms/frame: " + std::to_string(deltaTime*1000), make_float3(1, 1, 1));
 
 		glfwSwapBuffers(window);
 	}
@@ -608,7 +625,7 @@ int main(int argc, char *argv[])
 	delete interactiveCamera;
 	interactiveCamera = new InteractiveCamera();
 	interactiveCamera->setResolution(width, height);
-	interactiveCamera->setFOVX(60);
+	interactiveCamera->setFOVX(45);
 	hostRendercam = new Camera();
 	interactiveCamera->buildRenderCamera(hostRendercam);
 
@@ -620,11 +637,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("cornellbox_orig.1.ele");
-	tetmesh.load_tet_neigh("cornellbox_orig.1.neigh");
-	tetmesh.load_tet_node("cornellbox_orig.1.node");
-	tetmesh.load_tet_face("cornellbox_orig.1.face");
-	tetmesh.load_tet_t2f("cornellbox_orig.1.t2f");
+	tetmesh.load_tet_ele("test7.1.ele");
+	tetmesh.load_tet_neigh("test7.1.neigh");
+	tetmesh.load_tet_node("test7.1.node");
+	tetmesh.load_tet_face("test7.1.face");
+	tetmesh.load_tet_t2f("test7.1.t2f");
 
 	// ===========================
 	//     mesh2
@@ -693,6 +710,7 @@ int main(int argc, char *argv[])
 	// ===========================
 	//     mesh end
 	// ===========================
+
 
 	// Get bounding box
 	box = init_BBox(mesh);
