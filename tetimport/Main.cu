@@ -301,30 +301,20 @@ __device__ RGB radiance(mesh2 *mesh, int32_t start, Ray &ray, float4 oldpos, cur
 			if (firsthit.wall == true) 
 			{ 
 				emit = make_float4(0.3f, 0.3f, 0.3f, 0.0f); 
-				//f = make_float4(0.2f, 0.8f, 0.8f, 0.2f); 
-				/*double resultRed = color1.red + percent * (color2.red - color1.red);
-				double resultGreen = color1.green + percent * (color2.green - color1.green);
-				double resultBlue = color1.blue + percent * (color2.blue - color1.blue);*/
-				float4 color1 = make_float4(0, 0, 0, 0);
+				f = make_float4(0.2f, 0.8f, 0.8f, 0.2f); 
+				/*float4 color1 = make_float4(0, 0, 0, 0);
 				float4 color2 = make_float4(0.0f, 1.0f, 1.0f, 0);
-
-				//NewValue = (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
-
 				float percent = (((rayInWorldSpace.y + 1) * (1 - 0)) / (1 + 1)) + 0;
-
-
 				float red = color1.x + percent * (color2.x - color1.x);
 				float green = color1.y + percent * (color2.y - color1.y);
 				float blue = color1.z + percent * (color2.z - color1.z);
-			
-				f = make_float4(red, green, blue, 0);
-			
+				f = make_float4(red, green, blue, 0);*/
 			}
 
 
 			if (firsthit.dark == true) { emit = make_float4(1.0f, 0.0f, 0.0f, 0.0f); f = make_float4(1.0f, 0.0f, 0.0f, 0.0f); }
 
-			//if (firsthit.face == 959 || firsthit.face == 1046) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
+			if (firsthit.face == 141 || firsthit.face == 816) { emit = make_float4(12, 12, 12, 0); f = make_float4(0.0f, 0.0f, 0.0f, 0.0f); }
 
 			if (firsthit.constrained == true) { firsthit.refl_t = DIFF; }
 			if (firsthit.wall == true) { firsthit.refl_t = DIFF; }
@@ -637,11 +627,11 @@ int main(int argc, char *argv[])
 	cudaChooseDevice(&dev, &prop);
 
 	tetrahedra_mesh tetmesh;
-	tetmesh.load_tet_ele("test7.1.ele");
-	tetmesh.load_tet_neigh("test7.1.neigh");
-	tetmesh.load_tet_node("test7.1.node");
-	tetmesh.load_tet_face("test7.1.face");
-	tetmesh.load_tet_t2f("test7.1.t2f");
+	tetmesh.load_tet_ele("cornellbox_orig.1.ele");
+	tetmesh.load_tet_neigh("cornellbox_orig.1.neigh");
+	tetmesh.load_tet_node("cornellbox_orig.1.node");
+	tetmesh.load_tet_face("cornellbox_orig.1.face");
+	tetmesh.load_tet_t2f("cornellbox_orig.1.t2f");
 
 	// ===========================
 	//     mesh2

@@ -446,7 +446,7 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 __device__ void GetExitTet2(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet, float4 &uvw)
 {
 
-	float4 x2 = ray_o + ray_d * 1000;
+	float4 x2 = ray_o + ray_d * 10000;
 
 	float4 v0 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
 	float4 v1 = make_float4(nodes[1].x, nodes[1].y, nodes[1].z, 0); // B
@@ -478,20 +478,10 @@ __device__ void GetExitTet2(float4 ray_o, float4 ray_d, float4* nodes, int32_t f
 	double QCD; // C D
 	double sQCD; // C D
 
-	bool a_greater_b = false, c_greater_d = false, a_greater_c = true, b_greater_d = true, b_greater_c = true;
-
-	float tmp;
-	if (a > b) { tmp = a; a = b; b = tmp; a_greater_b = true; }
-	if (c > d) { tmp = c; c = d; d = tmp; c_greater_d = true; }
-	if (a > c) { tmp = a; a = c; c = tmp; a_greater_c = false; }
-	if (b > d) { tmp = b; b = d; d = tmp; b_greater_d = false; }
-	if (b > c) { tmp = b; b = c; c = tmp; b_greater_c = false; } // sorting algorithm works
-
-	if (!a_greater_b && !c_greater_d && !a_greater_c && !b_greater_d && b_greater_c) { face = findex[3]; tet = adjtet[3]; uvw = make_float4(-QBC, QAC, -QAB, 0); }
-	if (a_greater_b && c_greater_d && !a_greater_c && !b_greater_d && b_greater_c) { face = findex[2]; tet = adjtet[2]; uvw = make_float4(-QAD, QBD, QAB, 0); }
-	if (!a_greater_b && !c_greater_d && a_greater_c && b_greater_d && b_greater_c) { face = findex[1]; tet = adjtet[1]; uvw = make_float4(QAD, -QAC, -QCD, 0); }
-	if (a_greater_b && c_greater_d && a_greater_c && b_greater_d && b_greater_c) { face = findex[0]; tet = adjtet[0]; uvw = make_float4(QBC, -QBD, QCD, 0); }
-	if (a == b && c == d) tet = -1;
+	if (a > d && b > d && c > d) { face = findex[3]; tet = adjtet[3]; uvw = make_float4(-QBC, QAC, -QAB, 0); }
+	if (b > c && a > c && d > c) { face = findex[2]; tet = adjtet[2]; uvw = make_float4(-QAD, QBD, QAB, 0); }
+	if (c > b && d > b && a > b) { face = findex[1]; tet = adjtet[1]; uvw = make_float4(QAD, -QAC, -QCD, 0); }
+	if (d > a && c > a && b > a) { face = findex[0]; tet = adjtet[0]; uvw = make_float4(QBC, -QBD, QCD, 0); }
 }
 
 __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t start, rayhit &d, double &dist, bool edgeVisualisation, bool &isEdge, float4 &normal)
@@ -512,6 +502,8 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 				make_float4(mesh->n_x[mesh->t_nindex2[current_tet]], mesh->n_y[mesh->t_nindex2[current_tet]], mesh->n_z[mesh->t_nindex2[current_tet]], 0),
 				make_float4(mesh->n_x[mesh->t_nindex3[current_tet]], mesh->n_y[mesh->t_nindex3[current_tet]], mesh->n_z[mesh->t_nindex3[current_tet]], 0),
 				make_float4(mesh->n_x[mesh->t_nindex4[current_tet]], mesh->n_y[mesh->t_nindex4[current_tet]], mesh->n_z[mesh->t_nindex4[current_tet]], 0) };
+
+			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet, uvw);
 
 			GetExitTet2(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet, uvw);
 
