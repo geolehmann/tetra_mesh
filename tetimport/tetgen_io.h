@@ -399,7 +399,7 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 
 
 	// ABC
-	if (sQAB != 0 && sQAC !=0 && sQBC != 0) 
+	if (sQAB != 0 && sQAC !=0 && sQBC != 0 && lface != findex[3]) 
 	{ 
 		if (sQAB < 0 && sQAC > 0 && sQBC < 0) { face = findex[3]; tet = adjtet[3]; uvw = make_float4(-QBC, QAC, -QAB, 0); found = true; } // exit face
 	}
@@ -412,7 +412,7 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 		sQBD = signf(QBD); // B D
 
 		// BAD
-		if (sQAB != 0 && sQAD != 0 && sQBD != 0)
+		if (sQAB != 0 && sQAD != 0 && sQBD != 0 && lface != findex[2])
 		{
 			if (sQAB > 0 && sQAD < 0 && sQBD > 0) { face = findex[2]; tet = adjtet[2]; uvw = make_float4(-QAD, QBD, QAB, 0); found = true; } // exit face
 		}
@@ -424,7 +424,7 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 		sQCD = signf(QCD); // C D
 
 		// CDA
-		if (sQAD != 0 && sQAC != 0 && sQCD != 0)
+		if (sQAD != 0 && sQAC != 0 && sQCD != 0 && lface != findex[1])
 		{
 			if (sQAD > 0 && sQAC < 0 && sQCD < 0) { face = findex[1]; tet = adjtet[1]; uvw = make_float4(QAD, -QAC, -QCD, 0); found = true; } // exit face
 		}
@@ -433,7 +433,7 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 	if (!found)
 	{
 		// DCB
-		if (sQBC != 0 && sQBD != 0 && sQCD != 0)
+		if (sQBC != 0 && sQBD != 0 && sQCD != 0 && lface != findex[0])
 		{
 			if (sQBC > 0 && sQBD < 0 && sQCD > 0) { face = findex[0]; tet = adjtet[0]; uvw = make_float4(QBC, -QBD, QCD, 0); } // exit face
 		}
@@ -443,9 +443,9 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 }
 
 
-__device__ void GetExitTet2(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet, float4 &uvw)
+__device__ void GetExitTet2(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
-
+	face = 0; tet = 0;
 	float4 x2 = ray_o + ray_d * 10000;
 
 	float4 v0 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
@@ -458,30 +458,10 @@ __device__ void GetExitTet2(float4 ray_o, float4 ray_d, float4* nodes, int32_t f
 	float c = (x2.x - v2.x)*(x2.x - v2.x) + (x2.y - v2.y)*(x2.y - v2.y) + (x2.z - v2.z)*(x2.z - v2.z);
 	float d = (x2.x - v3.x)*(x2.x - v3.x) + (x2.y - v3.y)*(x2.y - v3.y) + (x2.z - v3.z)*(x2.z - v3.z);
 
-	float4 q = ray_d;
-	float4 p0 = v0 - ray_o;
-	float4 p1 = v1 - ray_o;
-	float4 p2 = v2 - ray_o;
-	float4 p3 = v3 - ray_o;
-
-	double QAB = ScTP(q, p0, p1); // A B
-	double QBC = ScTP(q, p1, p2); // B C
-	double QAC = ScTP(q, p0, p2); // A C
-	double sQAB = signf(QAB); // A B
-	double sQBC = signf(QBC); // B C
-	double sQAC = signf(QAC); // A C
-
-	double QAD; // A D
-	double QBD; // B D
-	double sQAD; // A D
-	double sQBD; // B D
-	double QCD; // C D
-	double sQCD; // C D
-
-	if (a > d && b > d && c > d) { face = findex[3]; tet = adjtet[3]; uvw = make_float4(-QBC, QAC, -QAB, 0); }
-	if (b > c && a > c && d > c) { face = findex[2]; tet = adjtet[2]; uvw = make_float4(-QAD, QBD, QAB, 0); }
-	if (c > b && d > b && a > b) { face = findex[1]; tet = adjtet[1]; uvw = make_float4(QAD, -QAC, -QCD, 0); }
-	if (d > a && c > a && b > a) { face = findex[0]; tet = adjtet[0]; uvw = make_float4(QBC, -QBD, QCD, 0); }
+	if (a < d && b < d && c < d) { face = findex[3]; tet = adjtet[3]; }
+	if (b < c && a < c && d < c) { face = findex[2]; tet = adjtet[2]; }
+	if (c < b && d < b && a < b) { face = findex[1]; tet = adjtet[1]; }
+	if (d < a && c < a && b < a) { face = findex[0]; tet = adjtet[0]; }
 }
 
 __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t start, rayhit &d, double &dist, bool edgeVisualisation, bool &isEdge, float4 &normal)
@@ -505,7 +485,8 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 
 			GetExitTet(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet, uvw);
 
-			GetExitTet2(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet, uvw);
+		//	GetExitTet2(rayo, rayd, nodes, findex, adjtets, lastface, nextface, nexttet);
+
 
 			if (mesh->face_is_constrained[nextface] == true) { d.constrained = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet
 			if (mesh->face_is_wall[nextface] == true)		 { d.wall = true; d.face = nextface; d.tet = current_tet; hitfound = true; } // vorher tet = nexttet

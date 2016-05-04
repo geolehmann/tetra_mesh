@@ -137,6 +137,11 @@ __device__ bool nearlyzero(float a)
 	return false;
 }
 
+__device__ float dist(float4 a, float4 b)
+{
+	return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2));
+}
+
 // ----------------------- non-CUDA math -----------------------
 
 float4 normalizeCPU(const float4 &a)
