@@ -446,22 +446,22 @@ __device__ void GetExitTet(float4 ray_o, float4 ray_d, float4* nodes, int32_t fi
 __device__ void GetExitTet2(float4 ray_o, float4 ray_d, float4* nodes, int32_t findex[4], int32_t adjtet[4], int32_t lface, int32_t &face, int32_t &tet)
 {
 	face = 0; tet = 0;
-	float4 x2 = ray_o + ray_d * 10000;
 
 	float4 v0 = make_float4(nodes[0].x, nodes[0].y, nodes[0].z, 0); // A
 	float4 v1 = make_float4(nodes[1].x, nodes[1].y, nodes[1].z, 0); // B
 	float4 v2 = make_float4(nodes[2].x, nodes[2].y, nodes[2].z, 0); // C
 	float4 v3 = make_float4(nodes[3].x, nodes[3].y, nodes[3].z, 0); // D
 
+	float4 x2 = ray_o + ray_d * 10000;
 	float a = (x2.x - v0.x)*(x2.x - v0.x) + (x2.y - v0.y)*(x2.y - v0.y) + (x2.z - v0.z)*(x2.z - v0.z);
 	float b = (x2.x - v1.x)*(x2.x - v1.x) + (x2.y - v1.y)*(x2.y - v1.y) + (x2.z - v1.z)*(x2.z - v1.z);
 	float c = (x2.x - v2.x)*(x2.x - v2.x) + (x2.y - v2.y)*(x2.y - v2.y) + (x2.z - v2.z)*(x2.z - v2.z);
 	float d = (x2.x - v3.x)*(x2.x - v3.x) + (x2.y - v3.y)*(x2.y - v3.y) + (x2.z - v3.z)*(x2.z - v3.z);
 
-	if (a < d && b < d && c < d) { face = findex[3]; tet = adjtet[3]; }
-	if (b < c && a < c && d < c) { face = findex[2]; tet = adjtet[2]; }
-	if (c < b && d < b && a < b) { face = findex[1]; tet = adjtet[1]; }
-	if (d < a && c < a && b < a) { face = findex[0]; tet = adjtet[0]; }
+	if (a < d && b < d && c < d && lface != findex[3]) { face = findex[3]; tet = adjtet[3]; }
+	if (b < c && a < c && d < c && lface != findex[2]) { face = findex[2]; tet = adjtet[2]; }
+	if (c < b && d < b && a < b && lface != findex[1]) { face = findex[1]; tet = adjtet[1]; }
+	if (d < a && c < a && b < a && lface != findex[0]) { face = findex[0]; tet = adjtet[0]; }
 }
 
 __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t start, rayhit &d, double &dist, bool edgeVisualisation, bool &isEdge, float4 &normal)
@@ -504,24 +504,27 @@ __device__ void traverse_ray(mesh2 *mesh, float4 rayo, float4 rayd, int32_t star
 		}
 	}
 
-	//intersection algorithm
-	float4 n_a = make_float4(mesh->n_x[mesh->f_node_a[nextface]], mesh->n_y[mesh->f_node_a[nextface]], mesh->n_z[mesh->f_node_a[nextface]], 0);
-	float4 n_b = make_float4(mesh->n_x[mesh->f_node_b[nextface]], mesh->n_y[mesh->f_node_b[nextface]], mesh->n_z[mesh->f_node_b[nextface]], 0);
-	float4 n_c = make_float4(mesh->n_x[mesh->f_node_c[nextface]], mesh->n_y[mesh->f_node_c[nextface]], mesh->n_z[mesh->f_node_c[nextface]], 0);
-
-	float4 e1 = n_b - n_a;
-	float4 e2 = n_c - n_a;
-	float4 s = rayo - n_a;
-	normal = Cross(e1, e2);
-	float d_ = -1.0f / Dot(rayd, normal);
-	dist = Dot(s, normal) * d_;
-
 	if (!hitfound)
 	{
 		d.dark = true;
 		d.face = nextface;
 		d.tet = current_tet;
 	}
+	else 
+	{
+		//intersection algorithm
+		float4 n_a = make_float4(mesh->n_x[mesh->f_node_a[nextface]], mesh->n_y[mesh->f_node_a[nextface]], mesh->n_z[mesh->f_node_a[nextface]], 0);
+		float4 n_b = make_float4(mesh->n_x[mesh->f_node_b[nextface]], mesh->n_y[mesh->f_node_b[nextface]], mesh->n_z[mesh->f_node_b[nextface]], 0);
+		float4 n_c = make_float4(mesh->n_x[mesh->f_node_c[nextface]], mesh->n_y[mesh->f_node_c[nextface]], mesh->n_z[mesh->f_node_c[nextface]], 0);
+
+		float4 e1 = n_b - n_a;
+		float4 e2 = n_c - n_a;
+		float4 s = rayo - n_a;
+		normal = Cross(e1, e2);
+		float d_ = -1.0f / Dot(rayd, normal);
+		dist = Dot(s, normal) * d_;
+	}
+
 }
 
 
