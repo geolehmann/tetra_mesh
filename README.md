@@ -18,6 +18,10 @@ This project aims to expand their idea by using GPGPU with Nvidia CUDA to speed 
 The Tetgen software developed by Hang Si(http://wias-berlin.de/software/tetgen/) is used for tetrahedralization
 of the scene.  
 
+![]({{site.baseurl}}/https://raw.githubusercontent.com/clehmann-geo/tetra_mesh/master/Alte%20Versuche/14_05_mesh_visualization.jpg)
+Fig. 1. Visualization of the tetrahedral mesh. 
+
+
 The pathtracer code is based on the pathtracer by Samuel Lapere (https://github.com/straaljager/GPU-path-tracing-tutorial-3)
 and the smallpt pathtracer (http://kevinbeason.com/smallpt/).
 
