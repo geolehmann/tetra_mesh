@@ -19,7 +19,7 @@ The Tetgen software developed by Hang Si(http://wias-berlin.de/software/tetgen/)
 of the scene.  
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/clehmann-geo/tetra_mesh/master/Alte%20Versuche/14_05_mesh_visualization.jpg" width="350"/>
+  <img src="https://raw.githubusercontent.com/clehmann-geo/tetra_mesh/master/Alte%20Versuche/14_05_mesh_visualization.jpg" width="768"/>
 </p>
 Fig. 1. Visualization of the tetrahedral mesh. 
 
